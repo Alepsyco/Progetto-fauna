@@ -1,0 +1,18 @@
+#################################################################
+VECCHIO DATASET STRADE (openstreetmaps, incompleto)
+
+#GETSTREETS da openstreetmaps
+
+#st_layers("./06_Friuli-Venezia_Giulia-2026-07-31T05Z.osm.pbf") #mostra i layer disponibili nel file (lines per strad /// multipolygons forse per classificazione utilizzo terreni)
+
+strade <- st_read("./06_Friuli-Venezia_Giulia-2026-07-31T05Z.osm.pbf", layer = "lines")
+
+#tolgo vie senza macchine o non strade
+strade <- strade %>% filter(!highway %in% c("cycleway","via_ferrata", "pedestrian","footway","cycleway") & !is.na(highway))
+
+incidenti <- incidenti %>% filter(!is.na(lat), !is.na(long)) %>% st_as_sf(coords = c("long", "lat"), crs = 4326, remove = FALSE)
+
+strade <- st_transform(strade, crs = 4326) #codice per far quadrare le coordinate
+
+
+#################################################################
