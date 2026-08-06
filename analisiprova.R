@@ -29,15 +29,13 @@ library("lunar")
 
 
 incidenti=read.csv("./incidenti.csv", sep=";")
-View(incidenti)
 
 #rimuovo specie che fanno pochi danni e specie con numero di incidenti non significativo + tutte le entry senza coordinate
 incidenti <- incidenti %>% filter(specie %in% c("Capriolo","Cinghiale","Volpe","Tasso","Cervo","Sciacallo dorato","Daino","Lupo","Camoscio"))
 incidenti <- incidenti %>% filter(!coordinateWGS84 %in% c(""))
 
-incidenti <- incidenti %>% select(-any_of(c("altro_personale", "gruppo", "morto_causa")))
-
-count(incidenti, specie, sort = TRUE)
+#rimuovo tutte le colonne superflue all'analisi 
+incidenti <- incidenti %>% select(-any_of(c("altro_personale", "gruppo", "morto_causa","specifica_altra_specie","mancato_recupero")))
 
 #estrazione coordinate lat long per api
 incidenti <- incidenti %>% mutate(long = as.numeric(str_extract(coordinateWGS84, "(?<=POINT\\()[-0-9.]+")), 
@@ -48,6 +46,26 @@ incidenti <- incidenti %>% mutate(data_iso = format(as.Date(data_intervento, "%Y
                                   orario = floor(ora_num / 4) * 4)      #MODIFICARE SE SI VUOLE ALTRI BLOCCHI DI ORE, QUI 8
 
 incidenti <- incidenti %>% filter(!is.na(lat), !is.na(long)) %>% st_as_sf(coords = c("long", "lat"), crs = 4326, remove = FALSE)
+
+
+#classificazione di pericolosità empirica in base al tipo peso e danni dell'animale
+incidenti <- incidenti %>% mutate(pericolosita_specie = case_when(
+                                  specie %in% c("Cervo", "Cinghiale", "Daino") ~ "HIGH",
+                                  specie %in% c("Capriolo", "Lupo", "Camoscio") ~ "MID",
+                                  specie %in% c("Tasso", "Sciacallo dorato", "Volpe") ~ "LOW"))
+
+#riempimento dataset generico
+
+incidenti <- incidenti %>% mutate(sesso = if_else(sesso == "" | sesso == "N.D.", "ND", sesso))
+
+incidenti <- incidenti %>% mutate(classe_eta = if_else(classe_eta == "" , "ND", sesso))
+
+#accorpamento data e ora per verificare tempo di intervento
+incidenti <- incidenti %>% mutate(dataora_segnalamento = as.POSIXct(paste(data_segnalamento, ora_segnalamento), format = "%Y-%m-%d %H:%M:%S"),
+                                  dataora_intervento = as.POSIXct(paste(data_intervento, ora_intervento), format = "%Y-%m-%d %H:%M:%S"))
+
+incidenti <- incidenti %>% mutate(dataoraDIFF = as.numeric(difftime(dataora_intervento, dataora_segnalamento, units = "mins")))
+incidenti <- incidenti %>% select(-any_of(c("data_segnalamento", "ora_segnalamento", "data_intervento", "ora_intervento")))
 
 #------------------------------------------------
 
@@ -72,9 +90,19 @@ stradeNEAR <- st_nearest_feature(incidenti, strade)
 stradeDIST <- st_distance(incidenti, strade[stradeNEAR, ], by_element = TRUE)
 
 #se ho il luogo vuoto e distanza minore di 30 inserisco la strada
-incidenti <- incidenti %>% mutate(luogo_segnalamento = if_else( as.numeric(stradeDIST) <= 30, 
+incidenti <- incidenti %>% mutate(luogo_segnalamentoCROSS = if_else( as.numeric(stradeDIST) <= 20, 
                                                                 strade$TRIM_STR_CODE_1[stradeNEAR], 
-                                                                luogo_segnalamento))
+                                                                luogo_segnalamento), .before = 11)
+#------------------------------------------------
+
+#GETLUNA da libreria
+#Full = luna piena
+#Waning = luna calante
+#Waxing = luna crescente
+#New = luna nuova
+#in alternativa name = FALSE per valori in gradi (provare se c'è correlazione?) 
+
+incidenti <- incidenti %>% mutate(fase_lunare = lunar.phase(as.Date(data_iso), name = TRUE))
 
 #------------------------------------------------
 
@@ -113,9 +141,9 @@ getmeteo <- function(lat, lon, data, orario) {
   )
 }  
 
-#FUNZIONE CHIAMATA API SU TUTTO DATASET ----NON ESEGUIRE A CASO----
+#FUNZIONE CHIAMATA API SU TUTTO DATASET TOKEN LIMITATIN E LENTO ----NON ESEGUIRE A CASO----
   
-meteo <- pmap_dfr(incidenti %>% st_drop_geometry() %>% select(lat, long, data_iso, orario),
+meteo <- pmap_dfr(incidenti %>% st_drop_geometry() %>% select(lat, long, data_iso, orario),     #dropgeometry se no si rompe
                   function(lat, long, data_iso, orario) {
                     Sys.sleep(0.1) #pausa per non rompere api
                     getmeteo(lat, long, data_iso, orario)
@@ -125,26 +153,13 @@ meteo <- pmap_dfr(incidenti %>% st_drop_geometry() %>% select(lat, long, data_is
 incidenti <- incidenti %>% bind_cols(meteo %>% select(temp, precipitazioni, vento))
 
 
-#------------------------------------------------
-
-#GETLUNA da libreria
-#Full = luna piena
-#Waning = luna calante
-#Waxing = luna crescente
-#New = luna nuova
-#in alternativa name = FALSE per valori in gradi (provare se c'è correlazione?) 
-
-incidenti <- incidenti %>% mutate(fase_lunare = lunar.phase(as.Date(data_iso), name = TRUE))
-
-
 #-------------------------------------------------
 
 #GETTERRENI da openstreetmaps
 
 terreni <- st_read(
   "./06_Friuli-Venezia_Giulia-2026-07-31T05Z.osm.pbf", query = "SELECT * FROM multipolygons WHERE natural IN ('wood','scrub','tree_row') OR 
-  landuse = 'forest' OR 
-  building IS NOT NULL OR 
+  landuse = 'forest' OR
   landuse IN ('cemetery','religious','education','recreation_ground','village_green','allotments','greenfield','farmland','farmyard','orchard','vineyard','meadow','animal_keeping','aquaculture','plant_nursery')"
 )
 
