@@ -155,29 +155,72 @@ incidenti <- incidenti %>% bind_cols(meteo %>% select(temp, precipitazioni, vent
 
 #-------------------------------------------------
 
-#GETTERRENI da openstreetmaps
+#GETHABITAT da carta della natura FVG
 
-terreni <- st_read(
-  "./06_Friuli-Venezia_Giulia-2026-07-31T05Z.osm.pbf", query = "SELECT * FROM multipolygons WHERE natural IN ('wood','scrub','tree_row') OR 
-  landuse = 'forest' OR
-  landuse IN ('cemetery','religious','education','recreation_ground','village_green','allotments','greenfield','farmland','farmyard','orchard','vineyard','meadow','animal_keeping','aquaculture','plant_nursery')"
-)
+#se = sensibilità ecologica
+#pe = pressione antropica
+#ve = valore ecologico
+#fg = ????????????
+
+habitat <- st_read("./CNAT_FVG_2021_v4/CNAT_FVG_2021_v4.shp")
+
+names(habitat)
+nrow(habitat)
+
+#-------------------------------------------------
+
+#PLOT VARI
+
+#habitat generale + incidenti
+ggplot() +
+  geom_sf(data = habitat, aes(fill = nomeclasse), color = NA) +
+  geom_sf(data = incidenti, color = "red", size = 0.3, alpha = 0.6) +
+  labs(
+    title = "Habitat con overlay degli incidenti",
+    subtitle = "Tipo Habitat"
+  )+
+  theme(
+    text = element_text(size = 10, family = "Helvetica"),
+    legend.position = "none"
+  )
 
 
-terreni <- terreni %>% select(natural, landuse, building, geometry = "_ogr_geometry_") #limita colonne interessate
-terreni <- terreni %>% st_make_valid() #ripara terreni non chiusi
+#habitat pressione antropica + incidenti
+ggplot() +
+  geom_sf(data = habitat, aes(fill = classe_pa), color = NA) +
+  geom_sf(data = incidenti, color = "red", size = 0.3, alpha = 0.6) +
+  labs(
+    title = "Habitat con overlay degli incidenti",
+    subtitle = "Pressione Antropica",
+    fill = "Pressione Antropica"
+  )+
+  theme(
+    text = element_text(size = 10, family = "Helvetica"),
+  )
 
-sum(!st_is_valid(terreni)) #controlla che tutti i terreni siano riparati
 
-#terreniUNION <- terreni %>% group_by(natural) %>% summarise(geometry = st_union(geometry))
+#strade + incidenti
 
+stradePLOT <- st_zm(strade, drop = TRUE) #droppa dimensioni oltre a XY (altrimenti non plotta con incidenti)
+
+ggplot() +
+  geom_sf(data = stradePLOT) +
+  geom_sf(data = incidenti, color = "red", size = 0.3, alpha = 0.6) +
+  labs(
+    title = "Strade FVG con overlay incidenti",
+    subtitle = ""
+  )+
+  theme(
+    text = element_text(size = 10, family = "Helvetica"),
+    legend.position = "none"
+  )
 
 ###################################################################
 ###################################################################
 
 #TODO
 
-#sOSTITUIRE DATASET TERRENI
+#valutare se tenere GETTERRENI da openstreetmap per altitudine (guarda legacy)
 #aggiustare dati e decidere come trattare incidenti
 #analizzare risultati snap +/- di 30? snap corretto?
 
