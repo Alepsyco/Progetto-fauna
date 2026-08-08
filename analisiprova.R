@@ -123,7 +123,7 @@ getmeteo <- function(lat, lon, data, orario) {
   )
 
   if (status_code(res) != 200) {
-    return(tibble(lat = NA, long = NA, data_iso = NA, precipitazioni = NA))
+    return(tibble(lat = NA, long = NA, data_iso = NA, precipitazioni = NA)) #fallback a NA e seleziona cosa scegliere cosa chiedere a API
   }
   
   datiM <- fromJSON(content(res, as = "text", encoding = "UTF-8"))
@@ -152,6 +152,7 @@ meteo <- pmap_dfr(incidenti %>% st_drop_geometry() %>% select(lat, long, data_is
 
 incidenti <- incidenti %>% bind_cols(meteo %>% select(temp, precipitazioni, vento))
 
+#meteo <- read.csv2("meteoincidenti.csv", header = TRUE) #SE PER SBAGLIO RESETTI INCIDENTI LEGGI DA QUA
 
 #-------------------------------------------------
 
@@ -164,9 +165,31 @@ incidenti <- incidenti %>% bind_cols(meteo %>% select(temp, precipitazioni, vent
 
 habitat <- st_read("./CNAT_FVG_2021_v4/CNAT_FVG_2021_v4.shp")
 
-names(habitat)
-nrow(habitat)
+#-------------------------------------------------
 
+##GETCOMUNI da dataset regionale
+
+comuni <- parse_url("https://serviziogc.regione.fvg.it/geoserver/UNITA_AMM/wfs")
+
+comuni$query <- list(
+  service = "WFS",
+  version = "2.0.0",
+  request = "GetFeature",
+  typeName = "UNITA_AMM:COMUNI_FVG", 
+  outputFormat = "application/json",
+  srsName = "EPSG:4326"
+)
+
+comuniURL <- build_url(comuni)
+comuni <- st_read(comuniURL)
+comuni <- comuni %>% st_make_valid() #non si può operare sopra se non si fa questo a causa di poligoni non validi
+
+#rimuovo tutte le colonne superflue all'analisi 
+comuni <- comuni %>% select(-any_of(c("id", "ID_OGG", "COD_ISTAT","COD_CATASTALE")))
+
+incidenti <- incidenti %>% st_join(comuni %>% select(NOME), join = st_within)
+
+#-------------------------------------------------
 #-------------------------------------------------
 
 #PLOT VARI
@@ -214,6 +237,34 @@ ggplot() +
     text = element_text(size = 10, family = "Helvetica"),
     legend.position = "none"
   )
+
+
+#comuni + incidenti
+ggplot() +
+  geom_sf(data = comuni, color = "black", color = NA) +
+  geom_sf(data = incidenti, color = "red", size = 0.3, alpha = 0.6) +
+  labs(
+    title = "Comuni con overlay incidenti",
+    subtitle = ""
+  )+
+  theme(
+    text = element_text(size = 10, family = "Helvetica"),
+    legend.position = "none"
+  )
+
+#comuni + incidenti ()
+ggplot() +
+  geom_sf(data = comuni, color = "black", color = NA) +
+  geom_sf(data = incidenti, color = "red", size = 0.3, alpha = 0.6) +
+  labs(
+    title = "Comuni con overlay incidenti",
+    subtitle = ""
+  )+
+  theme(
+    text = element_text(size = 10, family = "Helvetica"),
+    legend.position = "none"
+  )
+
 
 ###################################################################
 ###################################################################
