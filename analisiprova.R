@@ -67,6 +67,10 @@ incidenti <- incidenti %>% mutate(dataora_segnalamento = as.POSIXct(paste(data_s
 incidenti <- incidenti %>% mutate(dataoraDIFF = as.numeric(difftime(dataora_intervento, dataora_segnalamento, units = "mins")))
 incidenti <- incidenti %>% select(-any_of(c("data_segnalamento", "ora_segnalamento", "data_intervento", "ora_intervento")))
 
+#crea colonna settimane (per training)
+incidenti <- incidenti %>% mutate(settimana = format(as.Date(data_iso), "%Y-%V"))
+incidentiweek <- incidenti %>% st_drop_geometry() %>% count(NOME, settimana, name = "n_incidenti")
+
 #------------------------------------------------
 
 #GETSTRADE da dataset regionale
@@ -154,16 +158,6 @@ incidenti <- incidenti %>% bind_cols(meteo %>% select(temp, precipitazioni, vent
 
 #meteo <- read.csv2("meteoincidenti.csv", header = TRUE) #SE PER SBAGLIO RESETTI INCIDENTI LEGGI DA QUA
 
-#-------------------------------------------------
-
-#GETHABITAT da carta della natura FVG
-
-#se = sensibilità ecologica
-#pe = pressione antropica
-#ve = valore ecologico
-#fg = ????????????
-
-habitat <- st_read("./CNAT_FVG_2021_v4/CNAT_FVG_2021_v4.shp")
 
 #-------------------------------------------------
 
@@ -189,6 +183,41 @@ comuni <- comuni %>% select(-any_of(c("id", "ID_OGG", "COD_ISTAT","COD_CATASTALE
 
 incidenti <- incidenti %>% st_join(comuni %>% select(NOME), join = st_within)
 
+
+#-------------------------------------------------
+
+#GETHABITAT da carta della natura FVG
+
+#se = sensibilità ecologica
+#pe = pressione antropica
+#ve = valore ecologico
+#fg = ????????????
+
+habitat <- st_read("./CNAT_FVG_2021_v4/CNAT_FVG_2021_v4.shp")
+
+habitat <- st_transform(habitat, crs = st_crs(comuni)) #standardizza crs per join
+
+sf_use_s2(FALSE)  # toglie spherical geometry (?) riduce di molto il tempo per l'intersection
+habitatJOIN <- st_intersection(comuni %>% select(NOME), habitat %>% select(classe_ve, classe_se, classe_pa))
+sf_use_s2(TRUE)
+
+#cambio da ordinale a numerico per media + calcolo area per comune
+levels <- c("Molto bassa" = 1, "Bassa" = 2, "Media" = 3, "Alta" = 4, "Molto alta" = 5)
+habitatJOIN <- habitatJOIN %>% mutate(senseco = levels[classe_se],
+                                      pressantro = levels[classe_pa],
+                                      valeco = levels[classe_ve])
+habitatJOIN <- habitatJOIN %>% select(-any_of(c("classe_se", "classe_pa", "classe_ve")))
+habitatJOIN <- habitatJOIN %>% mutate(area = st_area(.))
+
+#media dei valori sopra, da 1 minimo a 5 massimo
+habitatJOIN <- habitatJOIN %>% group_by(NOME) %>% summarise(sensecoM = weighted.mean(senseco, w = as.numeric(area), na.rm = TRUE),
+                                                             pressantroM = weighted.mean(pressantro, w = as.numeric(area), na.rm = TRUE),
+                                                             valecoM = weighted.mean(valeco, w = as.numeric(area), na.rm = TRUE))
+
+#matrice di adiacenza tra comuni 
+adjMATRIX <- st_touches(comuni, sparse = FALSE)  
+rownames(adjMATRIX) <- comuni$NOME
+colnames(adjMATRIX) <- comuni$NOME
 #-------------------------------------------------
 #-------------------------------------------------
 
@@ -239,18 +268,6 @@ ggplot() +
   )
 
 
-#comuni + incidenti
-ggplot() +
-  geom_sf(data = comuni, color = "black", color = NA) +
-  geom_sf(data = incidenti, color = "red", size = 0.3, alpha = 0.6) +
-  labs(
-    title = "Comuni con overlay incidenti",
-    subtitle = ""
-  )+
-  theme(
-    text = element_text(size = 10, family = "Helvetica"),
-    legend.position = "none"
-  )
 
 #comuni + incidenti ()
 ggplot() +
