@@ -27,6 +27,8 @@ library("lunar")
 #library("conflicted") # Possibile risoluzione per errore
 #Unable to find an inherited method for function select for signature "data.frame" (conflitti tra pacchetti)
 
+set.seed(1984)
+
 
 incidenti=read.csv("./incidenti.csv", sep=";")
 
@@ -67,9 +69,6 @@ incidenti <- incidenti %>% mutate(dataora_segnalamento = as.POSIXct(paste(data_s
 incidenti <- incidenti %>% mutate(dataoraDIFF = as.numeric(difftime(dataora_intervento, dataora_segnalamento, units = "mins")))
 incidenti <- incidenti %>% select(-any_of(c("data_segnalamento", "ora_segnalamento", "data_intervento", "ora_intervento")))
 
-#crea colonna settimane (per training)
-incidenti <- incidenti %>% mutate(settimana = format(as.Date(data_iso), "%Y-%V"))
-incidentiweek <- incidenti %>% st_drop_geometry() %>% count(NOME, settimana, name = "n_incidenti")
 
 #------------------------------------------------
 
@@ -130,20 +129,19 @@ getmeteo <- function(lat, lon, data, orario) {
     return(tibble(lat = NA, long = NA, data_iso = NA, precipitazioni = NA)) #fallback a NA e seleziona cosa scegliere cosa chiedere a API
   }
   
-  datiM <- fromJSON(content(res, as = "text", encoding = "UTF-8"))
+datiM <- fromJSON(content(res, as = "text", encoding = "UTF-8"))
 
-  indiceORA <- orario + 1 #array orario parte da index 1 mezzanotte
   
-  tibble(
-    lat = lat,
-    long = lon,
-    data_iso = data,
-    orario = orario,
-    temp = datiM$hourly$temperature_2m[indiceORA],
-    precipitazioni = datiM$hourly$precipitation[indiceORA],
-    vento = datiM$hourly$windspeed_10m[indiceORA]
-  )
-}  
+indiceORA <- orario + 1 #array orario parte da index 1 mezzanotte
+  
+tibble(
+  lat = lat,
+  long = lon,
+  data_iso = data,
+  orario = orario,
+  temp = datiM$hourly$temperature_2m[indiceORA],
+  precipitazioni = datiM$hourly$precipitation[indiceORA],
+  vento = datiM$hourly$windspeed_10m[indiceORA])}  
 
 #FUNZIONE CHIAMATA API SU TUTTO DATASET TOKEN LIMITATIN E LENTO ----NON ESEGUIRE A CASO----
   
@@ -206,7 +204,10 @@ levels <- c("Molto bassa" = 1, "Bassa" = 2, "Media" = 3, "Alta" = 4, "Molto alta
 habitatJOIN <- habitatJOIN %>% mutate(senseco = levels[classe_se],
                                       pressantro = levels[classe_pa],
                                       valeco = levels[classe_ve])
+
 habitatJOIN <- habitatJOIN %>% select(-any_of(c("classe_se", "classe_pa", "classe_ve")))
+
+#area dell'habitat joinato
 habitatJOIN <- habitatJOIN %>% mutate(area = st_area(.))
 
 #media dei valori sopra, da 1 minimo a 5 massimo
@@ -218,8 +219,112 @@ habitatJOIN <- habitatJOIN %>% group_by(NOME) %>% summarise(sensecoM = weighted.
 adjMATRIX <- st_touches(comuni, sparse = FALSE)  
 rownames(adjMATRIX) <- comuni$NOME
 colnames(adjMATRIX) <- comuni$NOME
+
 #-------------------------------------------------
+
+#aggiustamenti per training
+
+#crea colonna settimane (per training)
+incidenti <- incidenti %>% mutate(settimana = format(as.Date(data_iso), "%Y-%V"))
+incidentiweek <- incidenti %>% st_drop_geometry() %>% count(NOME, settimana, name = "n_incidenti")
+
+#griglia comune + settimana inclusi 0 incidenti, per vedere esempi negativi
+
+settimanaGRID <- unique(incidenti$settimana)
+comuniGRID <- comuni$NOME
+
+#creo griglia di previsione con target per confronto con previsione in training 
+griglia <- expand_grid(NOME = comuniGRID, settimana = settimanaGRID)
+incidentiweek <- griglia %>% left_join(incidentiweek, by = c("NOME", "settimana")) %>% mutate(n_incidenti = replace_na(n_incidenti, 0),
+                                                                                              target = if_else(n_incidenti > 0, 1, 0))
+
+#Ho bisogno di un punto rappresentativo per il meteo comunale della settimana
+#Provato centro del comune ma vengono fuori troppe chiamate
+comuniCENTRO <- st_centroid(comuni) %>% mutate(lon = st_coordinates(.)[,1], lat = st_coordinates(.)[,2]) %>% st_drop_geometry() %>% select(NOME, lat, lon)
+
+#creo tot punti a cui fanno riferimento i vari comuni (da ~250 a 25)
+comuniAGG <- kmeans(comuniCENTRO %>% select(lat, lon), centers = 25)
+
+comuniCENTRO <- comuniCENTRO %>% mutate(zona = comuniAGG$cluster)
+
+zonaCENTRO <- as.data.frame(comuniAGG$centers) %>% mutate(zona = row_number())
+
+#Controllo 3 giorni a settimana per ogni punto, valutare se aumentare a 5/7
+incidentiweek <- incidentiweek %>% mutate(weeknum = as.numeric(substr(settimana, 6, 7)),
+                                          lun = as.Date(paste(data = as.numeric(substr(settimana, 1, 4)), weeknum, 1), format = "%Y %U %u"),
+                                          mer = lun + 2,
+                                          ven = lun + 4)
+
+#distinct da righe uniche del dataset
+meteoCOMUNI <- incidentiweek %>% distinct(NOME, settimana, lun, mer, ven) %>% left_join(comuniCENTRO, by = "NOME")
+
+#METEO SINGOLI COMUNI, serve per confronto training
+
+getmeteoZONE <- function(data) {
+  res <- GET(
+    "https://archive-api.open-meteo.com/v1/archive",
+      query = list(
+      latitude = paste(zonaCENTRO$lat, collapse = ","),
+      longitude = paste(zonaCENTRO$lon, collapse = ","),
+      start_date = data,
+      end_date = data,
+      daily = "temperature_2m_mean,precipitation_sum,windspeed_10m_max",
+      timezone = "Europe/Rome"
+    ))
+  if (status_code(res) != 200) {
+    return(NULL)
+  }
+  
+datiM2 <- fromJSON(content(res, as = "text", encoding = "UTF-8"))
+  
+tibble(
+  zona = zonaCENTRO$zona,
+  data_iso = data,
+  tempMEAN = datiM2$daily$temperature_2m_mean,
+  precipMEAN = datiM2$daily$precipitation_sum,
+  ventoMEAN = datiM2$daily$windspeed_10m_max)
+}
+
+
+dateUNICHE <- incidentiweek %>% select(lun, mer, ven) %>% 
+                                pivot_longer(everything(), values_to = "data_iso") %>%
+                                distinct(data_iso) %>%
+                                pull(data_iso)
+
+
+
+#call API METEO
+meteoZONE <- map_dfr(dateUNICHE, function(data) {
+  Sys.sleep(0.1)
+  getmeteoZONE(data)
+})
+
+
+
+
+
+
+
+
+  #-------------------------------------------------
 #-------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #PLOT VARI
 
@@ -289,7 +394,6 @@ ggplot() +
 #TODO
 
 #valutare se tenere GETTERRENI da openstreetmap per altitudine (guarda legacy)
-#aggiustare dati e decidere come trattare incidenti
 #analizzare risultati snap +/- di 30? snap corretto?
 
 
