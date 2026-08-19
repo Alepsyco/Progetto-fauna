@@ -1,0 +1,198 @@
+STANDARD, 100 epoche 0,001 LR
+
+Epoch: 0 Loss media training: 1.2316
+Epoch: 10 Loss media training: 1.2356
+Epoch: 20 Loss media training: 1.2341
+Epoch: 30 Loss media training: 1.2316
+Epoch: 40 Loss media training: 1.2250
+Epoch: 50 Loss media training: 1.2148
+Epoch: 60 Loss media training: 1.2052
+Epoch: 70 Loss media training: 1.1943
+Epoch: 80 Loss media training: 1.1833
+Epoch: 90 Loss media training: 1.1727
+
+
+STANDARD 200 epoche 0,001 LR
+
+Epoch: 0 Loss media training: 1.2365
+Epoch: 10 Loss media training: 1.2342
+Epoch: 20 Loss media training: 1.2328
+Epoch: 30 Loss media training: 1.2310
+Epoch: 40 Loss media training: 1.2230
+Epoch: 50 Loss media training: 1.2139
+Epoch: 60 Loss media training: 1.2064
+Epoch: 70 Loss media training: 1.1978
+Epoch: 80 Loss media training: 1.1892
+Epoch: 90 Loss media training: 1.1800
+Epoch: 100 Loss media training: 1.1712
+Epoch: 110 Loss media training: 1.1629
+Epoch: 120 Loss media training: 1.1585
+Epoch: 130 Loss media training: 1.1501
+Epoch: 140 Loss media training: 1.1418
+Epoch: 150 Loss media training: 1.1370
+Epoch: 160 Loss media training: 1.1304
+Epoch: 170 Loss media training: 1.1250
+Epoch: 180 Loss media training: 1.1273
+Epoch: 190 Loss media training: 1.1220
+
+
+STANDARD 450 epoche 0,001 LR DINAMICO (stepsize 150 gamma 0,6)
+Epoch: 10 Loss media training: 1.2323
+Epoch: 20 Loss media training: 1.2289
+Epoch: 30 Loss media training: 1.2232
+Epoch: 40 Loss media training: 1.2150
+Epoch: 50 Loss media training: 1.2088
+Epoch: 60 Loss media training: 1.1927
+Epoch: 70 Loss media training: 1.1820
+Epoch: 80 Loss media training: 1.1762
+Epoch: 90 Loss media training: 1.1728
+Epoch: 100 Loss media training: 1.1743
+Epoch: 110 Loss media training: 1.1647
+Epoch: 120 Loss media training: 1.1844
+Epoch: 130 Loss media training: 1.1655
+Epoch: 140 Loss media training: 1.1592
+Epoch: 150 Loss media training: 1.1581
+Epoch: 160 Loss media training: 1.1560
+Epoch: 170 Loss media training: 1.1494
+Epoch: 180 Loss media training: 1.1504
+Epoch: 190 Loss media training: 1.1653
+Epoch: 200 Loss media training: 1.1462
+Epoch: 210 Loss media training: 1.1296
+Epoch: 220 Loss media training: 1.1214
+Epoch: 230 Loss media training: 1.1172
+Epoch: 240 Loss media training: 1.1234
+Epoch: 250 Loss media training: 1.1260
+Epoch: 260 Loss media training: 1.1165
+Epoch: 270 Loss media training: 1.1114
+Epoch: 280 Loss media training: 1.1106
+Epoch: 290 Loss media training: 1.1299
+Epoch: 300 Loss media training: 1.1119
+Epoch: 310 Loss media training: 1.1089
+Epoch: 320 Loss media training: 1.1083
+Epoch: 330 Loss media training: 1.1170
+Epoch: 340 Loss media training: 1.1352
+Epoch: 350 Loss media training: 1.1061
+Epoch: 360 Loss media training: 1.1124
+Epoch: 370 Loss media training: 1.1135
+Epoch: 380 Loss media training: 1.1131
+Epoch: 390 Loss media training: 1.0983
+Epoch: 400 Loss media training: 1.1115
+Epoch: 410 Loss media training: 1.0951
+Epoch: 420 Loss media training: 1.0891
+Epoch: 430 Loss media training: 1.0824
+Epoch: 440 Loss media training: 1.0831
+Epoch: 450 Loss media training: 1.0873
+Epoch: 460 Loss media training: 1.0889
+Epoch: 470 Loss media training: 1.0770
+Epoch: 480 Loss media training: 1.0794
+Epoch: 490 Loss media training: 1.0783
+Epoch: 500 Loss media training: 1.0782
+Epoch: 510 Loss media training: 1.0811
+Epoch: 520 Loss media training: 1.0745
+Epoch: 530 Loss media training: 1.0787
+Epoch: 540 Loss media training: 1.0818
+Epoch: 550 Loss media training: 1.0760
+Epoch: 560 Loss media training: 1.0781
+Epoch: 570 Loss media training: 1.0884
+Epoch: 580 Loss media training: 1.0747
+Epoch: 590 Loss media training: 1.0739
+
+
+32 NODI 600 epoche LR 0.01 stepsize 200 gamma 0.5 MODIFICA A PESO ESEMPI POSITIVI 0,6
+
+Epoch: 0 Loss media training: 0.9409
+Epoch: 10 Loss media training: 0.9399
+Epoch: 20 Loss media training: 0.9380
+Epoch: 30 Loss media training: 0.9347
+Epoch: 40 Loss media training: 0.9310
+Epoch: 50 Loss media training: 0.9231
+Epoch: 60 Loss media training: 0.9077
+Epoch: 70 Loss media training: 0.8936
+Epoch: 80 Loss media training: 0.8822
+Epoch: 90 Loss media training: 0.8711
+Epoch: 100 Loss media training: 0.8645
+Epoch: 110 Loss media training: 0.8545
+Epoch: 120 Loss media training: 0.8532
+Epoch: 130 Loss media training: 0.8498
+Epoch: 140 Loss media training: 0.8445
+Epoch: 150 Loss media training: 0.8387
+Epoch: 160 Loss media training: 0.8479
+Epoch: 170 Loss media training: 0.8318
+Epoch: 180 Loss media training: 0.8275
+Epoch: 190 Loss media training: 0.8395
+Epoch: 200 Loss media training: 0.8299
+Epoch: 210 Loss media training: 0.7853
+Epoch: 220 Loss media training: 0.7763
+Epoch: 230 Loss media training: 0.7673
+Epoch: 240 Loss media training: 0.7684
+Epoch: 250 Loss media training: 0.7809
+Epoch: 260 Loss media training: 0.7689
+Epoch: 270 Loss media training: 0.7734
+Epoch: 280 Loss media training: 0.7632
+Epoch: 290 Loss media training: 0.7553
+Epoch: 300 Loss media training: 0.7628
+Epoch: 310 Loss media training: 0.7535
+Epoch: 320 Loss media training: 0.7601
+Epoch: 330 Loss media training: 0.7454
+Epoch: 340 Loss media training: 0.7636
+Epoch: 350 Loss media training: 0.7576
+Epoch: 360 Loss media training: 0.7492
+Epoch: 370 Loss media training: 0.7443
+Epoch: 380 Loss media training: 0.7536
+Epoch: 390 Loss media training: 0.7661
+Epoch: 400 Loss media training: 0.7554
+Epoch: 410 Loss media training: 0.7148
+Epoch: 420 Loss media training: 0.7066
+Epoch: 430 Loss media training: 0.7043
+Epoch: 440 Loss media training: 0.7124
+Epoch: 450 Loss media training: 0.7077
+Epoch: 460 Loss media training: 0.7082
+Epoch: 470 Loss media training: 0.7258
+Epoch: 480 Loss media training: 0.7065
+Epoch: 490 Loss media training: 0.6969
+Epoch: 500 Loss media training: 0.6946
+Epoch: 510 Loss media training: 0.6947
+Epoch: 520 Loss media training: 0.7193
+Epoch: 530 Loss media training: 0.6947
+Epoch: 540 Loss media training: 0.6924
+Epoch: 550 Loss media training: 0.7181
+Epoch: 560 Loss media training: 0.6972
+Epoch: 570 Loss media training: 0.6875
+Epoch: 580 Loss media training: 0.6953
+Epoch: 590 Loss media training: 0.7184
+
+
+32 nodi 600 epoche LR 0,01 stepsize 100 gamma LR 0,5
+
+Epoch: 0 Loss media training: 0.9178
+Epoch: 20 Loss media training: 0.8690
+Epoch: 40 Loss media training: 0.8348
+Epoch: 60 Loss media training: 0.8238
+Epoch: 80 Loss media training: 0.8129
+Epoch: 100 Loss media training: 0.8077
+Epoch: 120 Loss media training: 0.8110
+Epoch: 140 Loss media training: 0.8174
+Epoch: 160 Loss media training: 0.8138
+Epoch: 180 Loss media training: 0.8398
+Epoch: 200 Loss media training: 0.8167 interrotto
+
+
+32 nodi 300 epoche LR 0,01 stepsize 60 gamma LR 0,5
+
+Epoch: 0 Loss media training: 0.9173
+Epoch: 20 Loss media training: 0.8723
+Epoch: 40 Loss media training: 0.8394
+Epoch: 60 Loss media training: 0.8160
+Epoch: 80 Loss media training: 0.7687
+Epoch: 100 Loss media training: 0.7531
+Epoch: 120 Loss media training: 0.7436
+Epoch: 140 Loss media training: 0.7095
+Epoch: 160 Loss media training: 0.6807
+Epoch: 180 Loss media training: 0.6759
+Epoch: 200 Loss media training: 0.6471
+Epoch: 220 Loss media training: 0.6396
+Epoch: 240 Loss media training: 0.6339
+Epoch: 260 Loss media training: 0.6208
+Epoch: 280 Loss media training: 0.6159
+Loss media test: 0.653132611597088
+Accuratezza media test: 0.7357431305965907

@@ -60,7 +60,7 @@ incidenti <- incidenti %>% mutate(pericolosita_specie = case_when(
 
 incidenti <- incidenti %>% mutate(sesso = if_else(sesso == "" | sesso == "N.D.", "ND", sesso))
 
-incidenti <- incidenti %>% mutate(classe_eta = if_else(classe_eta == "" , "ND", sesso))
+incidenti <- incidenti %>% mutate(classe_eta = if_else(classe_eta == "" | classe_eta == "N.D.", "ND", classe_eta))
 
 #accorpamento data e ora per verificare tempo di intervento
 incidenti <- incidenti %>% mutate(dataora_segnalamento = as.POSIXct(paste(data_segnalamento, ora_segnalamento), format = "%Y-%m-%d %H:%M:%S"),
@@ -92,7 +92,7 @@ strade <- st_read(stradeURL)
 stradeNEAR <- st_nearest_feature(incidenti, strade)
 stradeDIST <- st_distance(incidenti, strade[stradeNEAR, ], by_element = TRUE)
 
-#se ho il luogo vuoto e distanza minore di 30 inserisco la strada
+#Se distanza minore di 20 inserisco la strada (nuova colonna per avere più dati)
 incidenti <- incidenti %>% mutate(luogo_segnalamentoCROSS = if_else( as.numeric(stradeDIST) <= 20, 
                                                                 strade$TRIM_STR_CODE_1[stradeNEAR], 
                                                                 luogo_segnalamento), .before = 11)
@@ -120,7 +120,7 @@ getmeteo <- function(lat, lon, data, orario) {
       longitude = lon,
       start_date = data,
       end_date = data,
-      hourly = "temperature_2m,temperature_2m,precipitation,windspeed_10m",
+      hourly = "temperature_2m,precipitation,windspeed_10m",
       timezone = "Europe/Rome"
     )
   )
@@ -154,7 +154,7 @@ meteo <- pmap_dfr(incidenti %>% st_drop_geometry() %>% select(lat, long, data_is
 
 incidenti <- incidenti %>% bind_cols(meteo %>% select(temp, precipitazioni, vento))
 
-#meteo <- read.csv2("meteoincidenti.csv", header = TRUE) #SE PER SBAGLIO RESETTI INCIDENTI LEGGI DA QUA
+#meteo <- read.csv2("meteoincidenti.csv", sep = ",", header = TRUE) #SE PER SBAGLIO RESETTI INCIDENTI LEGGI DA QUA
 
 
 #-------------------------------------------------
@@ -195,9 +195,10 @@ habitat <- st_read("./CNAT_FVG_2021_v4/CNAT_FVG_2021_v4.shp")
 
 habitat <- st_transform(habitat, crs = st_crs(comuni)) #standardizza crs per join
 
-sf_use_s2(FALSE)  # toglie spherical geometry (?) riduce di molto il tempo per l'intersection
-habitatJOIN <- st_intersection(comuni %>% select(NOME), habitat %>% select(classe_ve, classe_se, classe_pa))
+sf_use_s2(FALSE){  # toglie spherical geometry (?) riduce di molto il tempo per l'intersection
+habitatJOIN <- st_intersection(comuni %>% select(ID, NOME), habitat %>% select(classe_ve, classe_se, classe_pa))
 sf_use_s2(TRUE)
+}
 
 #cambio da ordinale a numerico per media + calcolo area per comune
 levels <- c("Molto bassa" = 1, "Bassa" = 2, "Media" = 3, "Alta" = 4, "Molto alta" = 5)
@@ -211,7 +212,7 @@ habitatJOIN <- habitatJOIN %>% select(-any_of(c("classe_se", "classe_pa", "class
 habitatJOIN <- habitatJOIN %>% mutate(area = st_area(.))
 
 #media dei valori sopra, da 1 minimo a 5 massimo
-habitatJOIN <- habitatJOIN %>% group_by(NOME) %>% summarise(sensecoM = weighted.mean(senseco, w = as.numeric(area), na.rm = TRUE),
+habitatJOIN <- habitatJOIN %>% group_by(ID,NOME) %>% summarise(sensecoM = weighted.mean(senseco, w = as.numeric(area), na.rm = TRUE),
                                                              pressantroM = weighted.mean(pressantro, w = as.numeric(area), na.rm = TRUE),
                                                              valecoM = weighted.mean(valeco, w = as.numeric(area), na.rm = TRUE))
 
@@ -221,12 +222,16 @@ rownames(adjMATRIX) <- comuni$NOME
 colnames(adjMATRIX) <- comuni$NOME
 
 #-------------------------------------------------
+#-------------------------------------------------
+
+
 
 #aggiustamenti per training
 
 #crea colonna settimane (per training)
-incidenti <- incidenti %>% mutate(settimana = format(as.Date(data_iso), "%Y-%V"))
+incidenti <- incidenti %>% mutate(settimana = format(as.Date(data_iso), "%G-%V"))
 incidentiweek <- incidenti %>% st_drop_geometry() %>% count(NOME, settimana, name = "n_incidenti")
+incidentiweek <- incidentiweek %>% left_join(comuni %>% st_drop_geometry() %>% select(ID, NOME), by = "NOME")
 
 #griglia comune + settimana inclusi 0 incidenti, per vedere esempi negativi
 
@@ -258,6 +263,7 @@ incidentiweek <- incidentiweek %>% mutate(weeknum = as.numeric(substr(settimana,
 #distinct da righe uniche del dataset
 meteoCOMUNI <- incidentiweek %>% distinct(NOME, settimana, lun, mer, ven) %>% left_join(comuniCENTRO, by = "NOME")
 
+
 #METEO SINGOLI COMUNI, serve per confronto training
 
 getmeteoZONE <- function(data) {
@@ -271,19 +277,18 @@ getmeteoZONE <- function(data) {
       daily = "temperature_2m_mean,precipitation_sum,windspeed_10m_max",
       timezone = "Europe/Rome"
     ))
-  if (status_code(res) != 200) {
-    return(NULL)
-  }
+  
+if (status_code(res) != 200) return(NULL)
+
   
 datiM2 <- fromJSON(content(res, as = "text", encoding = "UTF-8"))
-  
+
 tibble(
   zona = zonaCENTRO$zona,
   data_iso = data,
   tempMEAN = datiM2$daily$temperature_2m_mean,
   precipMEAN = datiM2$daily$precipitation_sum,
-  ventoMEAN = datiM2$daily$windspeed_10m_max)
-}
+  ventoMEAN = datiM2$daily$windspeed_10m_max )}
 
 
 dateUNICHE <- incidentiweek %>% select(lun, mer, ven) %>% 
@@ -295,10 +300,46 @@ dateUNICHE <- incidentiweek %>% select(lun, mer, ven) %>%
 
 #call API METEO
 meteoZONE <- map_dfr(dateUNICHE, function(data) {
-  Sys.sleep(0.1)
+  Sys.sleep(0.8)
   getmeteoZONE(data)
 })
 
+#se non si fa unlist poi la join da problemi
+meteoZONE <- meteoZONE %>% mutate(tempMEAN = unlist(tempMEAN),
+                                  precipMEAN = unlist(precipMEAN),
+                                  ventoMEAN = unlist(ventoMEAN))
+
+
+#allarga valori
+meteoCOMUNI <- meteoCOMUNI %>% pivot_longer(cols = c(lun, mer, ven), names_to = "giorno", values_to = "data_iso")
+
+meteoZONE <- readRDS("meteoZONE_FINAL.rds")
+
+meteoCOMUNI <- meteoCOMUNI %>% left_join(meteoZONE, by = c("zona", "data_iso"))
+
+#aggregazione dei 3 giorni per comune + settimana
+meteoCOMUNI <- meteoCOMUNI %>% group_by(NOME, settimana) %>% summarise(tempMEAN = mean(tempMEAN, na.rm = TRUE),
+                                                                       precipMEAN = mean(precipMEAN, na.rm = TRUE),
+                                                                       ventoMEAN = mean(ventoMEAN, na.rm = TRUE),
+                                                                       .groups = "drop")
+
+#DATASET FINALE SU CUI OPERIAMO (habitat per comune + meteo per comune + incidenti per comune con target di previsione)
+meteoCOMUNI <- meteoCOMUNI %>% select(-any_of(c("lun", "mer", "ven")))
+incidentiweek <- incidentiweek %>% select(-any_of(c("lun", "mer", "ven", "weeknum")))
+
+
+datasetNODES <- incidentiweek %>% left_join(habitatJOIN %>% st_drop_geometry(), by = "NOME","ID") %>% 
+                                                            left_join(meteoCOMUNI, by = c("NOME", "settimana"))
+
+#aggiunta fase lunare per confronto in py (derivata da data settimanale)
+datasetNODES <- datasetNODES %>% mutate(fase_lunare = lunar.phase(as.Date(paste(as.numeric(substr(settimana, 1, 4)), as.numeric(substr(settimana, 6, 7)), 3), format = "%Y %U %u"), name = TRUE))
+
+write.csv(datasetNODES, "datasetNODES.csv", row.names = FALSE)
+
+write.csv(as.data.frame(adjMATRIX), "matriceADJ.csv")
+
+comuniPY <- comuni %>% mutate(geometry_wkt = st_as_text(geometry)) %>% st_drop_geometry()
+write.csv(comuniPY, "comuni.csv", row.names = FALSE)
 
 
 
@@ -306,7 +347,8 @@ meteoZONE <- map_dfr(dateUNICHE, function(data) {
 
 
 
-  #-------------------------------------------------
+
+#-------------------------------------------------
 #-------------------------------------------------
 
 

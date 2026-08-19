@@ -16,3 +16,60 @@ strade <- st_transform(strade, crs = 4326) #codice per far quadrare le coordinat
 
 
 #################################################################
+
+#PER FINIRE METEOZONE DOPO IL LIMITE
+#meteoZONE <- readRDS("meteoZONE5.rds")
+
+#calcolo date mancanti (tot sulle 1080 circa)
+dateMANCANTI <- setdiff(
+  format(as.Date(dateUNICHE), "%Y-%m-%d"),
+  format(as.Date(unique(meteoZONE$data_iso)), "%Y-%m-%d")
+)
+dateMANCANTI <- as.Date(dateMANCANTI)
+length(dateMANCANTI)
+
+#call api
+meteoZONE_new <- map_dfr(dateMANCANTI, function(data) {
+  Sys.sleep(0.3)
+  getmeteoZONE(data)
+  })
+
+#unlist se no non fa join
+meteoZONE_new <- meteoZONE_new %>% mutate(
+  tempMEAN = unlist(tempMEAN),
+  precipMEAN = unlist(precipMEAN),
+  ventoMEAN = unlist(ventoMEAN))
+
+meteoZONE <- meteoZONE %>% mutate(
+  tempMEAN = unlist(tempMEAN),
+  precipMEAN = unlist(precipMEAN),
+  ventoMEAN = unlist(ventoMEAN))
+
+meteoZONE <- bind_rows(meteoZONE, meteoZONE_new)
+
+saveRDS(meteoZONE, "meteoZONE_FINAL.rds")
+
+n_distinct(meteoZONE$data_iso)
+
+#################################################################
+
+epochs settimane singole (no sliding window)
+
+for epoca in range(epochs):
+    parametri.train()
+    optimz.zero_grad()  #azzera i gradienti calcolati nell'epoca precedente
+
+    previsioneTRAIN = parametri(xTRAIN, archiIDX) #passa la sequenza di training nel modello e ottieni la previsione su settimana (come da architettura)
+
+    targetTRAIN = yTRAIN[-1] #confronto target con valore effettivo dell'ultima settimana
+
+    #TROPPI VALORI A 0, AGGIUSTO LOSS DI MODO CHE PREVISIONE SBAGLIATA SU 1 SIA MOLTO DISINCENTIVATA
+    pesi = torch.where(targetTRAIN == 1, posWG, torch.tensor(1.0))
+    lossTRAIN = nn.functional.binary_cross_entropy(previsioneTRAIN, targetTRAIN, reduction='none') #calcolo loss per ogni comune
+    lossTOT = (lossTRAIN * pesi).mean()
+
+    lossTOT.backward()      #calcola gradienti (quanto ogni peso ha contribuito a errore)
+    optimz.step()    #aggiorna pesi della rete in base a gradienti
+
+    if epoca % 10 == 0:
+        print(f"Epoca {epoca} - Loss training: {lossTOT.item():.4f}")
