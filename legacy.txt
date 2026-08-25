@@ -18,7 +18,7 @@ strade <- st_transform(strade, crs = 4326) #codice per far quadrare le coordinat
 #################################################################
 
 #PER FINIRE METEOZONE DOPO IL LIMITE
-#meteoZONE <- readRDS("meteoZONE5.rds")
+#meteoZONE <- readRDS("meteoZONE_FINAL.rds")
 
 #calcolo date mancanti (tot sulle 1080 circa)
 dateMANCANTI <- setdiff(
