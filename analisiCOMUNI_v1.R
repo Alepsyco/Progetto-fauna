@@ -134,16 +134,15 @@ tibble(
 
 #FUNZIONE CHIAMATA API SU TUTTO DATASET TOKEN LIMITATIN E LENTO ----NON ESEGUIRE A CASO----
   
-meteo <- pmap_dfr(incidenti %>% st_drop_geometry() %>% select(lat, long, data_iso, orario),     #dropgeometry se no si rompe
-                  function(lat, long, data_iso, orario) {
-                    Sys.sleep(0.1) #pausa per non rompere api
-                    getmeteo(lat, long, data_iso, orario)
-  }
-)
+#meteo <- pmap_dfr(incidenti %>% st_drop_geometry() %>% select(lat, long, data_iso, orario),     #dropgeometry se no si rompe
+#                  function(lat, long, data_iso, orario) {
+#                    Sys.sleep(0.1) #pausa per non rompere api
+#                    getmeteo(lat, long, data_iso, orario)
+# })
 
-incidenti <- incidenti %>% bind_cols(meteo %>% select(temp, precipitazioni, vento))
+#incidenti <- incidenti %>% bind_cols(meteo %>% select(temp, precipitazioni, vento))
 
-#meteo <- read.csv2("meteoincidenti.csv", sep = ",", header = TRUE) #SE PER SBAGLIO RESETTI INCIDENTI LEGGI DA QUA
+meteo <- read.csv2("meteoincidenti.csv", sep = ",", header = TRUE) #SE PER SBAGLIO RESETTI INCIDENTI LEGGI DA QUA
 
 
 #-------------------------------------------------
@@ -184,10 +183,10 @@ habitat <- st_read("./CNAT_FVG_2021_v4/CNAT_FVG_2021_v4.shp")
 
 habitat <- st_transform(habitat, crs = st_crs(comuni)) #standardizza crs per join
 
-sf_use_s2(FALSE){  # toglie spherical geometry (?) riduce di molto il tempo per l'intersection
+sf_use_s2(FALSE)  # toglie spherical geometry (?) riduce di molto il tempo per l'intersection
 habitatJOIN <- st_intersection(comuni %>% select(ID, NOME), habitat %>% select(classe_ve, classe_se, classe_pa))
 sf_use_s2(TRUE)
-}
+
 
 #cambio da ordinale a numerico per media + calcolo area per comune
 levels <- c("Molto bassa" = 1, "Bassa" = 2, "Media" = 3, "Alta" = 4, "Molto alta" = 5)
@@ -226,16 +225,21 @@ incidenti <- incidenti %>% mutate(mese = format(as.Date(data_iso), "%Y-%m"))
 incidentimese <- incidenti %>% st_drop_geometry() %>% count(NOME, mese, name = "n_incidenti")
 incidentimese <- incidentimese %>% left_join(comuni %>% st_drop_geometry() %>% select(ID, NOME), by = "NOME")
 
-#griglia comune + settimana inclusi 0 incidenti, per vedere esempi negativi
+#griglia comune + mese inclusi 0 incidenti, per vedere esempi negativi
 
-meseGRID <- unique(incidenti$mese)
-comuniGRID <- comuni$NOME
+inizio <- min(as.Date(incidenti$data_iso), na.rm = TRUE)
+fine   <- max(as.Date(incidenti$data_iso), na.rm = TRUE)
+
+meseGRID <- format(seq(from = as.Date(cut(inizio, "month")), 
+                       to = as.Date(cut(fine, "month")), 
+                       by = "month"), "%Y-%m")
+
+comuniGRID <- unique(comuni$NOME)
 
 #creo griglia di previsione con target per confronto con previsione in training 
-
 griglia <- expand_grid(NOME = comuniGRID, mese = meseGRID)
-incidentimese <- griglia %>% left_join(incidentimese, by = c("NOME", "mese")) %>% mutate(n_incidenti = replace_na(n_incidenti, 0),
-                                                                                         target = if_else(n_incidenti > 0, 1, 0))
+incidentimese <- griglia %>% left_join(incidentimese %>% select(-any_of("ID")), by = c("NOME", "mese"))
+incidentimese <- incidentimese %>% mutate(n_incidenti = replace_na(n_incidenti, 0),target = if_else(n_incidenti > 0, 1, 0))
 
 #Ho bisogno di un punto rappresentativo per il meteo comunale della settimana
 #Provato centro del comune ma vengono fuori troppe chiamate
@@ -292,41 +296,65 @@ getmeteoZONE <- function(mese) {
 mesiUNICI <- unique(incidentimese$mese)
 
 #CHIAMATA API NON SPARARE A CASO
-meteoZONE_mensile <- map_dfr(mesiUNICI, function(m) {
-  Sys.sleep(0.8)
-  getmeteoZONE(m)
-})
+#meteoZONE_mese <- map_dfr(mesiUNICI, function(m) {
+ # Sys.sleep(0.8)
+  #getmeteoZONE(m)
+#})
 
-saveRDS(meteoZONE_mensile, "meteoZONE_FINAL_V2.rds")
+saveRDS(meteoZONE_mese, "meteoZONE_FINAL_V2.rds")
 
-meteoCOMUNI <- comuniCENTRO %>% select(NOME, zona) %>% left_join(meteoZONE_mensile, by = "zona")
+#meteoZONE_mese <- read.csv2("meteoZONE_FINAL_V2.rds", sep = ",", header = TRUE) #SE PER SBAGLIO RESETTI LEGGI DA QUA
+meteoCOMUNI <- comuniCENTRO %>% select(NOME, zona) %>% left_join(meteoZONE_mese, by = "zona")
 
 
 #-------------------------------------------------
 #densità strade per zona
 
 
+sf_use_s2(FALSE) # toglie spherical geometry (?) riduce di molto il tempo per l'intersection
+stradeJOIN <- st_intersection(comuni %>% select(ID, NOME), strade %>% select(CLASSE))
+sf_use_s2(TRUE)
+
+stradeJOIN <- stradeJOIN %>% mutate(km = as.numeric(st_length(.)) / 1000)
+
+#km totali di strada per comune 
+stradeTOT <- stradeJOIN %>% st_drop_geometry() %>% group_by(NOME) %>% summarise(strade_km = sum(km, na.rm = TRUE))
+
+#densità = km di strada totali / km^2 comune, normalizza per dimensione del comune
+comuni <- comuni %>% mutate(AREA_KQ = AREA_MQ / 1000000) %>% st_drop_geometry() 
+comuni <- comuni %>% select(NOME, AREA_KQ, AREA_MQ, PERIM_ML, ID) %>% distinct(NOME, .keep_all = TRUE)
 
 
+stradeTOT <- stradeTOT %>% left_join(comuni, by = "NOME")
+stradeTOT <- stradeTOT %>% mutate(density = strade_km / AREA_KQ)   #densità strade
+stradeTOT <- stradeTOT %>% select(NOME, strade_km, density)
 
-
-
-
+#distinzione per tipo di strada
+stradeCLASSE <- stradeJOIN %>% st_drop_geometry()
+stradeCLASSE <- stradeCLASSE %>% group_by(NOME, CLASSE)
+stradeCLASSE <- stradeCLASSE %>% summarise(km = sum(km, na.rm = TRUE)) #km totali
+stradeCLASSE <- stradeCLASSE %>% pivot_wider(names_from = CLASSE, values_from = km, values_fill = 0)  #elementi di CLASSE strade diventano singole colonne (conta km totali per tipo di strada)
 
 
 #-------------------------------------------------
 #-------------------------------------------------
 
-#DATASET FINALE SU CUI OPERIAMO (habitat per zona + meteo per zona + incidenti per zona con target di previsione)
+#DATASET FINALE SU CUI OPERIAMO (habitat per comune + meteo per comune + incidenti per comune con target di previsione)
 
-datasetNODES <- incidentimese %>% left_join(habitatJOIN %>% st_drop_geometry(), by = c("NOME")) %>%
-  left_join(meteoCOMUNI, by = c("NOME", "mese"))
+#incidenti e meteo
+datasetNODES <- incidentimese %>% left_join(habitatJOIN %>% st_drop_geometry(), by = c("NOME"))
+datasetNODES <- datasetNODES %>% left_join(meteoCOMUNI, by = c("NOME", "mese"))
+
+#densità totale e tipi strada
+datasetNODES <- datasetNODES %>% left_join(stradeTOT, by = "NOME")
+datasetNODES <- datasetNODES %>% left_join(stradeCLASSE, by = "NOME") 
+datasetNODES <- datasetNODES %>% mutate(across(c(SP, SS, SR, RA, SC, NSA, AS)))
 
 
-write.csv(datasetNODES, "datasetNODES_V2.csv", row.names = FALSE)
+write.csv(datasetNODES, "datasetNODES_V3.csv", row.names = FALSE)
 write.csv(as.data.frame(adjMATRIX), "matriceADJ.csv")
 
-#ADDED matrice di distanza tra centri comunali, permette FORSE di aggiungere un layer alla NN e guardare vicini dei vicini
+#matrice di distanza tra centri comunali, permette FORSE di aggiungere un layer alla NN e guardare vicini dei vicini
 distMATRIX <- as.matrix(dist(comuniCENTRO %>% select(lon, lat))) * 111 #moltiplico per passare da lat/lon a km
 
 #peso archi = 1/distanza
@@ -342,17 +370,6 @@ write.csv(as.data.frame(pesiMATRIX), "matricePESI.csv")
 
 #-------------------------------------------------
 #-------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -429,6 +446,7 @@ ggplot() +
 
 #valutare se aggiungere GETTERRENI da openstreetmap per altitudine (guarda legacy)
 #pulizia ambiente di lavoro per chiarezza debug
-#Test mensile zona
+#UNIRE TIPI DI STRADA (RA RACCORDO?)
+#SISTEMARE METEO
 
 
