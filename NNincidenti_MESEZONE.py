@@ -5,6 +5,7 @@ from pandas import notna
 from torch_geometric.data import Data
 import torch.nn as nn
 from torch_geometric.nn import SAGEConv, GATConv, GCNConv
+from sklearn.inspection import permutation_importance
 import torch.optim as optim
 from sklearn.metrics import roc_auc_score, average_precision_score, precision_recall_curve, f1_score
 from sklearn.linear_model import LogisticRegression
@@ -14,7 +15,7 @@ import random
 
 #Carica dataset finali di R
 
-nodi = pd.read_csv("datasetNODES_V2.csv")  #habitat per comune + meteo per comune + incidenti per comune con target di previsione
+nodi = pd.read_csv("datasetNODES_V3.csv")  #habitat per comune + meteo per comune + incidenti per comune con target di previsione
 adj = pd.read_csv("matriceADJ.csv", index_col=0)    #matrix adiacenza comuni
 comuni = pd.read_csv("comuni.csv") #dati comuni (nome, perimetro, area, poligono 2d)
 
@@ -62,7 +63,13 @@ feature = [
     "n_incidenti_PREV2",
     "n_incidenti_PREV4",
     "sin_mese",
-    "cos_mese"
+    "cos_mese",
+    "strade_km",
+    "density",
+    "AUT",
+    "SPRI",
+    "SLOC",
+    "SCOM"
 ]
 
 #------------------------------------------------
@@ -110,7 +117,9 @@ class RischioGNN(nn.Module):
         self.norm = nn.LayerNorm(nodiGCNN)
         self.dropout = nn.Dropout(0.3)
         self.gru = nn.GRU(input_size=nodiGCNN + inputfeature, hidden_size=nodiGRU, batch_first=True, bidirectional=False) #gru per temporale
+
         input_classifier = nodiGRU + nodiGRU + inputfeature
+
         self.output = nn.Sequential(
             nn.Linear(input_classifier, 32),
             nn.ReLU(),
@@ -375,5 +384,7 @@ print("Average Precision:", averageprecision)
 
 ################
 
-#TODO SOSTITUISCI lossFN con focal loss
+#TODO integrare parte di benchmark decentemente
+        #finire di aggiustare R (ordinato leggibile) e rinominare variabili decentemente
+        #sistemare feature in base a benchmark results (sin/cos, precipitazioni medie, strade comunali SCOM)
 

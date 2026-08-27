@@ -296,16 +296,25 @@ getmeteoZONE <- function(mese) {
 mesiUNICI <- unique(incidentimese$mese)
 
 #CHIAMATA API NON SPARARE A CASO
-#meteoZONE_mese <- map_dfr(mesiUNICI, function(m) {
- # Sys.sleep(0.8)
-  #getmeteoZONE(m)
-#})
+meteoZONE_mese <- map_dfr(mesiUNICI, function(m) {
+  Sys.sleep(0.8)
+  getmeteoZONE(m)
+})
 
 saveRDS(meteoZONE_mese, "meteoZONE_FINAL_V2.rds")
 
 #meteoZONE_mese <- read.csv2("meteoZONE_FINAL_V2.rds", sep = ",", header = TRUE) #SE PER SBAGLIO RESETTI LEGGI DA QUA
 meteoCOMUNI <- comuniCENTRO %>% select(NOME, zona) %>% left_join(meteoZONE_mese, by = "zona")
 
+
+#matrice di distanza tra centri comunali, permette FORSE di aggiungere un layer alla NN e guardare vicini dei vicini
+distMATRIX <- as.matrix(dist(comuniCENTRO %>% select(lon, lat))) * 111 #moltiplico per passare da lat/lon a km
+
+#peso archi = 1/distanza
+pesiMATRIX <- (1 / pmax(distMATRIX, 0.1)) * adjMATRIX
+
+dimnames(pesiMATRIX) <- dimnames(adjMATRIX)
+diag(pesiMATRIX) <- 0 #non considero se stessi
 
 #-------------------------------------------------
 #densità strade per zona
@@ -336,8 +345,20 @@ stradeCLASSE <- stradeCLASSE %>% summarise(km = sum(km, na.rm = TRUE)) #km total
 stradeCLASSE <- stradeCLASSE %>% pivot_wider(names_from = CLASSE, values_from = km, values_fill = 0)  #elementi di CLASSE strade diventano singole colonne (conta km totali per tipo di strada)
 
 
+#accorpo classi di strada inutili
+stradeCLASSE <- stradeCLASSE %>% mutate(AUT = replace_na(AS, 0) + replace_na(RA, 0),
+                                        SPRI = replace_na(SS, 0) + replace_na(SR, 0) + replace_na(NSA, 0),
+                                        SLOC = replace_na(SP, 0),
+                                        SCOM = replace_na(SC, 0))
+
+stradeCLASSE <- stradeCLASSE %>% select(NOME, AUT, SPRI, SLOC, SCOM)
+
+
+
 #-------------------------------------------------
 #-------------------------------------------------
+
+
 
 #DATASET FINALE SU CUI OPERIAMO (habitat per comune + meteo per comune + incidenti per comune con target di previsione)
 
@@ -348,31 +369,17 @@ datasetNODES <- datasetNODES %>% left_join(meteoCOMUNI, by = c("NOME", "mese"))
 #densità totale e tipi strada
 datasetNODES <- datasetNODES %>% left_join(stradeTOT, by = "NOME")
 datasetNODES <- datasetNODES %>% left_join(stradeCLASSE, by = "NOME") 
-datasetNODES <- datasetNODES %>% mutate(across(c(SP, SS, SR, RA, SC, NSA, AS)))
+datasetNODES <- datasetNODES %>% mutate(across(c(AUT, SPRI, SLOC, SCOM)))
 
 
+write.csv(as.data.frame(pesiMATRIX), "matricePESI.csv")
 write.csv(datasetNODES, "datasetNODES_V3.csv", row.names = FALSE)
 write.csv(as.data.frame(adjMATRIX), "matriceADJ.csv")
 
-#matrice di distanza tra centri comunali, permette FORSE di aggiungere un layer alla NN e guardare vicini dei vicini
-distMATRIX <- as.matrix(dist(comuniCENTRO %>% select(lon, lat))) * 111 #moltiplico per passare da lat/lon a km
-
-#peso archi = 1/distanza
-pesiMATRIX <- (1 / pmax(distMATRIX, 0.1)) * adjMATRIX
-
-dimnames(pesiMATRIX) <- dimnames(adjMATRIX)
-
-diag(pesiMATRIX) <- 0 #non considero se stessi
-
-write.csv(as.data.frame(pesiMATRIX), "matricePESI.csv")
-
 
 
 #-------------------------------------------------
 #-------------------------------------------------
-
-
-
 
 
 
@@ -439,6 +446,8 @@ ggplot() +
   )
 
 
+
+
 ###################################################################
 ###################################################################
 
@@ -446,7 +455,6 @@ ggplot() +
 
 #valutare se aggiungere GETTERRENI da openstreetmap per altitudine (guarda legacy)
 #pulizia ambiente di lavoro per chiarezza debug
-#UNIRE TIPI DI STRADA (RA RACCORDO?)
-#SISTEMARE METEO
 
+#se si vuole rifare/aggiungere plot (in particolare su comuni) aggiungere nuova tabella di supporto (tolto geometry da comuni)
 

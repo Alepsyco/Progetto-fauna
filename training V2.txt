@@ -1,0 +1,32 @@
+MESI PER COMUNI /// AGGIUNTI KM DI STRADE DENSITA' E TIPOLOGIE /// GCNN 32 GRU 64 LR 0.002 WD 0.0008 stepsize 35 gamma 0.7 patience 100 /// linear <relu GCN GCN NORM DROPOUT GRU OUTPUT (res relu dropout linear)
+
+
+
+Epoch: 0 || Loss media training: 0.6363
+Epoch: 30 || Loss media training: 0.5868
+Epoch: 60 || Loss media training: 0.5776
+Epoch: 90 || Loss media training: 0.5701
+Epoch: 120 || Loss media training: 0.5625
+Epoch: 150 || Loss media training: 0.5538
+##################################################
+Early stopping attivato all'epoca 161
+##################################################
+Loss media validation: 0.6141975596547127
+Soglia usata (in precedenza 0,5): 0.26048848
+True positive: 542
+False positive: 624
+True negative: 462
+False negative: 92
+Recall positive: 0.8548895899052279
+Precision positive: 0.46483704974267026
+AUC-ROC: 0.7301807925359174
+Average Precision: 0.6295029181461806
+
+ditto senza nuove feature (density km ecc)
+
+peggiore (anche in altri test)
+
+
+##################################################
+
+USARE ANCHE LE FEATURE DELLE STRADE (DA AGGIUSTARE)
