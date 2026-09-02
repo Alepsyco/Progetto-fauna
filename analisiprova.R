@@ -256,9 +256,12 @@ zonaCENTRO <- as.data.frame(comuniAGG$centers) %>% mutate(zona = row_number())
 
 #Controllo 3 giorni a settimana per ogni punto, valutare se aumentare a 5/7
 incidentiweek <- incidentiweek %>% mutate(weeknum = as.numeric(substr(settimana, 6, 7)),
-                                          lun = as.Date(paste(data = as.numeric(substr(settimana, 1, 4)), weeknum, 1), format = "%Y %U %u"),
+                                          lun = as.Date(paste(data = as.numeric(substr(settimana, 1, 4)), weeknum, 1), format = "%G %G %u"),
                                           mer = lun + 2,
                                           ven = lun + 4)
+#per osservare incidenti settimane precedenti senza inquinare dati
+incidentiweek <- incidentiweek %>%arrange(NOME, settimana) %>% group_by(NOME) %>% mutate(n_incidenti_PREV = lag(n_incidenti, default = 0)) %>% ungroup()
+
 
 #distinct da righe uniche del dataset
 meteoCOMUNI <- incidentiweek %>% distinct(NOME, settimana, lun, mer, ven) %>% left_join(comuniCENTRO, by = "NOME")
@@ -328,17 +331,17 @@ meteoCOMUNI <- meteoCOMUNI %>% select(-any_of(c("lun", "mer", "ven")))
 incidentiweek <- incidentiweek %>% select(-any_of(c("lun", "mer", "ven", "weeknum")))
 
 
-datasetNODES <- incidentiweek %>% left_join(habitatJOIN %>% st_drop_geometry(), by = "NOME","ID") %>% 
+datasetNODES <- incidentiweek %>% left_join(habitatJOIN %>% st_drop_geometry(), by = c("NOME")) %>% 
                                                             left_join(meteoCOMUNI, by = c("NOME", "settimana"))
 
 #aggiunta fase lunare per confronto in py (derivata da data settimanale)
-datasetNODES <- datasetNODES %>% mutate(fase_lunare = lunar.phase(as.Date(paste(as.numeric(substr(settimana, 1, 4)), as.numeric(substr(settimana, 6, 7)), 3), format = "%Y %U %u"), name = TRUE))
+datasetNODES <- datasetNODES %>% mutate(fase_lunare = lunar.phase(as.Date(paste(as.numeric(substr(settimana, 1, 4)), as.numeric(substr(settimana, 6, 7)), 3), format = "%G %V %u"), name = TRUE))
 
 write.csv(datasetNODES, "datasetNODES.csv", row.names = FALSE)
 
 write.csv(as.data.frame(adjMATRIX), "matriceADJ.csv")
 
-comuniPY <- comuni %>% mutate(geometry_wkt = st_as_text(geometry)) %>% st_drop_geometry()
+comuniPY <- comuni %>% mutate(geometry_wkt = st_as_text(geometry)) %>% st_drop_geometry() #se no da problemi
 write.csv(comuniPY, "comuni.csv", row.names = FALSE)
 
 

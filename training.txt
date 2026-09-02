@@ -196,3 +196,171 @@ Epoch: 260 Loss media training: 0.6208
 Epoch: 280 Loss media training: 0.6159
 Loss media test: 0.653132611597088
 Accuratezza media test: 0.7357431305965907
+
+500 epoche ditto con residual layer
+
+Epoch: 0 Loss media training: 0.8937
+Epoch: 20 Loss media training: 0.8449
+Epoch: 40 Loss media training: 0.8252
+Epoch: 60 Loss media training: 0.8239
+Epoch: 80 Loss media training: 0.7299
+Epoch: 100 Loss media training: 0.7001
+Epoch: 120 Loss media training: 0.6725
+Epoch: 140 Loss media training: 0.6040
+Epoch: 160 Loss media training: 0.5957
+Epoch: 180 Loss media training: 0.5619
+Epoch: 200 Loss media training: 0.5294
+Epoch: 220 Loss media training: 0.5224
+Epoch: 240 Loss media training: 0.5094
+Epoch: 260 Loss media training: 0.4958
+Epoch: 280 Loss media training: 0.4989
+Epoch: 300 Loss media training: 0.4866
+Epoch: 320 Loss media training: 0.4808
+Epoch: 340 Loss media training: 0.4777
+Epoch: 360 Loss media training: 0.4758
+Epoch: 380 Loss media training: 0.4725
+Epoch: 400 Loss media training: 0.4708
+Epoch: 420 Loss media training: 0.4697
+Epoch: 440 Loss media training: 0.4677
+Epoch: 460 Loss media training: 0.4669
+Epoch: 480 Loss media training: 0.4660
+Loss media validation: 0.7187663474172916
+Accuratezza media validation: 0.7287241074274171
+
+ditto con secondo layer gcn
+
+Epoch: 0 Loss media training: 0.8901
+Epoch: 20 Loss media training: 0.8538
+Epoch: 40 Loss media training: 0.8423
+Epoch: 60 Loss media training: 0.8227
+Epoch: 80 Loss media training: 0.7538
+Epoch: 100 Loss media training: 0.7297
+Epoch: 120 Loss media training: 0.7122
+Epoch: 140 Loss media training: 0.6508
+Epoch: 160 Loss media training: 0.6326
+
+ditto tolto secondo layer diminuito posGW a *0,2 (fatto controllo generava troppi falsi positivi)
+
+Epoch: 0 Loss media training: 0.4632
+Epoch: 20 Loss media training: 0.4383
+Epoch: 40 Loss media training: 0.4272
+Epoch: 60 Loss media training: 0.4187
+Epoch: 80 Loss media training: 0.3771
+Epoch: 100 Loss media training: 0.3638
+Epoch: 120 Loss media training: 0.3474
+Epoch: 140 Loss media training: 0.3208
+Epoch: 160 Loss media training: 0.3128
+Epoch: 180 Loss media training: 0.3045
+Epoch: 200 Loss media training: 0.2954
+Epoch: 220 Loss media training: 0.2857
+Epoch: 240 Loss media training: 0.2809
+Epoch: 260 Loss media training: 0.2772
+Epoch: 280 Loss media training: 0.2736
+Epoch: 300 Loss media training: 0.2752
+Epoch: 320 Loss media training: 0.2699
+Epoch: 340 Loss media training: 0.2684
+Epoch: 360 Loss media training: 0.2683
+Epoch: 380 Loss media training: 0.2658
+Epoch: 400 Loss media training: 0.2649
+Epoch: 420 Loss media training: 0.2644
+Epoch: 440 Loss media training: 0.2633
+Epoch: 460 Loss media training: 0.2630
+Epoch: 480 Loss media training: 0.2627
+Loss media validation: 0.6004999190006616
+Accuratezza media validation: 0.8213484635892904
+
+
+CAMBIO RADICALE DI STRUTTURA (vedi commit 20/08)
+Epoch: 0 || Loss media training: 0.6506
+Epoch: 60 || Loss media training: 0.6255
+Epoch: 120 || Loss media training: 0.6229
+Epoch: 180 || Loss media training: 0.6224
+Epoch: 240 || Loss media training: 0.6202
+Loss media validation: 0.6997408343935912
+Accuratezza media validation: 0.8664731518277582
+Soglia usata (in precedenza 0,5): 0.31087464
+True positive: 1462
+False positive: 5394
+True negative: 14535
+False negative: 1346
+Recall positive: 0.5206552706552521
+Precision positive: 0.2132438739789934
+AUC-ROC: 0.6751562777203802
+Average Precision: 0.259843755258822
+
+ditto + aggiunto due parametri nuovi (incidenti nei 2 e 4 giorni precedenti, che valgono di più per valutare il rischio)
+
+Epoch: 0 || Loss media training: 0.6432
+Epoch: 60 || Loss media training: 0.6244
+Epoch: 120 || Loss media training: 0.6203
+Epoch: 180 || Loss media training: 0.6197
+Epoch: 240 || Loss media training: 0.6183
+Loss media validation: 0.6993602801044032
+Accuratezza media validation: 0.8680564761161804
+Soglia usata (in precedenza 0,5): 0.36241493
+True positive: 1038
+False positive: 3118
+True negative: 16811
+False negative: 1770
+Recall positive: 0.36965811965810647
+Precision positive: 0.2497593840230931
+AUC-ROC: 0.6758731030771775
+Average Precision: 0.26177055979580716
+
+ditto + 1.25* nel posGW
+
+aumentano falsi positivi e diminuiscono negativi, aucroc uguale ma nel caso di questo problema è meglio così
+
+
+epochs = 300 learningrate = 0.001 weightdecay = 0.0002 stepsize = 90 gammaLR = 0.5 SAGEConv soglia basata su f1score 
+
+Epoch: 0 || Loss media training: 0.6503
+Epoch: 30 || Loss media training: 0.6186
+Epoch: 60 || Loss media training: 0.6140
+Epoch: 90 || Loss media training: 0.6104
+Epoch: 120 || Loss media training: 0.6070
+Epoch: 150 || Loss media training: 0.6042
+##################################################
+Early stopping attivato all'epoca 160
+##################################################
+Loss media validation: 0.6933051117186276
+Soglia usata (in precedenza 0,5): 0.30329254
+True positive: 1422
+False positive: 5004
+True negative: 14925
+False negative: 1386
+Recall positive: 0.5064102564102384
+Precision positive: 0.22128851540615901
+AUC-ROC: 0.6872719021472096
+Average Precision: 0.2721063106803343 
+
+
+
+ditto con 64 nodi gru e più spazio di manovra con patience leggermente maggiore
+
+
+Epoch: 0 || Loss media training: 0.6565
+Epoch: 30 || Loss media training: 0.6189
+Epoch: 60 || Loss media training: 0.6143
+Epoch: 90 || Loss media training: 0.6115
+Epoch: 120 || Loss media training: 0.6085
+Epoch: 150 || Loss media training: 0.6065
+
+##################################################
+Early stopping attivato all'epoca 163
+##################################################
+
+Loss media validation: 0.693447471227286
+Soglia usata (in precedenza 0,5): 0.30417255
+
+True positive: 1412
+False positive: 4884
+True negative: 15045
+False negative: 1396
+
+Recall positive: 0.5028490028489849
+Precision positive: 0.2242693773824615
+AUC-ROC: 0.6893378902511322
+Average Precision: 0.26977834834878794
+
+aggiunto residual 
