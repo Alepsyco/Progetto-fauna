@@ -4,7 +4,7 @@ import torch
 from pandas import notna
 from torch_geometric.data import Data
 import torch.nn as nn
-from torch_geometric.nn import SAGEConv, GATConv, GCNConv
+from torch_geometric.nn import SAGEConv, GATConv, GCNConv, GATv2Conv
 from sklearn.inspection import permutation_importance
 import torch.optim as optim
 from sklearn.metrics import roc_auc_score, average_precision_score, precision_recall_curve, f1_score
@@ -12,6 +12,19 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.ensemble import HistGradientBoostingClassifier
 import copy
 import random
+
+
+
+
+######################################################################################################################################
+# Analisi rischio comune per mese.
+# Idea iniziale era strade per mese (o settimana) ma dati troppo sparsi e grande disparità tra TRUE e FALSE (circa 10/1)
+# Idea è trainare questa NN per dare una specie di baseline di analisi e poi selezionare un paio di strade di interesse (in base a numero di incidenti o altro)
+# ed allenare un'altra NN più concentrata su obiettivo originale.
+# Poi fare un confronto (???)
+#
+#
+######################################################################################################################################
 
 #Carica dataset finali di R
 
@@ -23,6 +36,7 @@ comuni = pd.read_csv("comuni.csv") #dati comuni (nome, perimetro, area, poligono
 torch.manual_seed(1984)
 np.random.seed(1984)
 random.seed(1984)
+
 #------------------------------------------------
 #PROBLEMI CON ALLINAMENTO NOME ID, risolvo direttamente su py
 
@@ -50,13 +64,17 @@ nodi["sin_mese"] = np.sin(2 * np.pi * nodi["monthnum"] / 12)
 nodi["cos_mese"] = np.cos(2 * np.pi * nodi["monthnum"] / 12)
 
 #------------------------------------------------
-#FEATURE PER NODO E (TODO: AGGIUNGI FEATURE STRADE E ALTEZZE CIRCOSTANTI)
+#FEATURE PER NODO E (TODO: aggiungi ALTEZZE CIRCOSTANTI)
 
 feature = [
     "sensecoM",
     "pressantroM",
     "valecoM",
+    "altitudineMEAN",
+    "altitudineDEVSTANDARD",
     "tempMEAN",
+    "precipMAX",
+    "precipSOGLIA",
     "precipMEAN",
     "ventoMEAN",
     "n_incidenti_PREV",
@@ -69,7 +87,8 @@ feature = [
     "AUT",
     "SPRI",
     "SLOC",
-    "SCOM"
+    "SCOM_percentage",
+    "SCOM_density"
 ]
 
 #------------------------------------------------
@@ -93,7 +112,6 @@ for m in monthORDERED:
 
 
 
-
 xMONTH = torch.stack([g.x for g in grafiMONTH])    #feature ogni mese 255 comuni con X feature ciascuno
 yMONTH = torch.stack([g.y for g in grafiMONTH])    #target (per misurare correttezza training)
 
@@ -111,12 +129,12 @@ class RischioGNN(nn.Module):
         self.node_emb = nn.Sequential(
             nn.Linear(inputfeature, nodiGCNN),  # gcnn aggrega nodi vicini
             nn.ReLU())
-        self.gcn = GATConv(inputfeature, nodiGCNN, heads=2, concat=False)
-        self.gcn2 = GATConv(nodiGCNN, nodiGCNN, heads=2, concat=False)
+        self.gcn = GATv2Conv(inputfeature, nodiGCNN, heads=2, concat=False)
+        self.gcn2 = GATv2Conv(nodiGCNN, nodiGCNN, heads=2, concat=False)
 
         self.norm = nn.LayerNorm(nodiGCNN)
         self.dropout = nn.Dropout(0.3)
-        self.gru = nn.GRU(input_size=nodiGCNN + inputfeature, hidden_size=nodiGRU, batch_first=True, bidirectional=False) #gru per temporale
+        self.gru = nn.GRU(input_size=nodiGCNN + inputfeature, hidden_size=nodiGRU, batch_first=True) #gru per temporale
 
         input_classifier = nodiGRU + nodiGRU + inputfeature
 
@@ -174,7 +192,7 @@ for t in range(len(monthORDERED) - windowlenght):    #per ogni blocco da windowl
     ySEQ.append(targetY)
 
 
-trainQUOTA = 0.75
+trainQUOTA = 0.80
 valdationQUOTA = 0.10
 
 
@@ -235,13 +253,11 @@ epochs = 300
 learningrate = 0.002
 weightdecay = 0.0008
 
-stepsize = 35 #ogni x epoche
+stepsize = 50 #ogni x epoche
 gammaLR = 0.7   #moltiplica per y (diminuisce)
 
 #per early stopping
 patience = 100  #n epoche di attesa prima di fermarsi (evita che si possano ignorare possibilim miglioramenti
-
-
 
 
 
@@ -362,8 +378,6 @@ falsePOS = ((yFORECAST > thresholds[np.argmax(f1_scores)]) & (yTARGET == 0)).sum
 falseNEG = ((yFORECAST <= thresholds[np.argmax(f1_scores)]) & (yTARGET == 1)).sum()
 trueNEG = ((yFORECAST <= thresholds[np.argmax(f1_scores)]) & (yTARGET == 0)).sum()
 
-print("Soglia usata (in precedenza 0,5):", thresholds[np.argmax(f1_scores)])
-
 print("\nTrue positive:", truePOS)
 print("False positive:", falsePOS)
 print("True negative:", trueNEG)
@@ -380,11 +394,82 @@ aucroc = roc_auc_score(yTARGET, yFORECAST) #quanto il modello distingue categori
 averageprecision = average_precision_score(yTARGET, yFORECAST)
 
 print("AUC-ROC:", aucroc)
-print("Average Precision:", averageprecision)
+print("Average precision:", averageprecision)
 
-################
+#------------------------------------------------
+#------------------------------------------------
+#test PARTE FINALE - SOLO PER STESURA TESTO
+print(f"##################################################\n")
+print(f"##################################################\n")
+print(f"METRICHE TEST SET\n\n")
+print(f"##################################################\n")
+print(f"##################################################\n")
 
-#TODO integrare parte di benchmark decentemente
-        #finire di aggiustare R (ordinato leggibile) e rinominare variabili decentemente
-        #sistemare feature in base a benchmark results (sin/cos, precipitazioni medie, strade comunali SCOM)
+parametri.eval()
+previsioniTEST_idx = []
+targetTEST_idx = []
+
+with torch.no_grad():
+    lossTEST = 0
+
+    for i in range(len(xTEST)):
+        previsioneTEST = parametri(xTEST[i], archiIDX)
+        target = yTEST[i]
+
+        lossTEST += lossFN(previsioneTEST, target).item()
+
+        previsioniTEST_idx.append(torch.sigmoid(previsioneTEST))
+        targetTEST_idx.append(target)
+
+print(f"Loss media test: {lossTEST / len(xTEST):.4f}")
+
+# Concatenazione tensori
+yTEST_true = torch.cat(targetTEST_idx).numpy()
+yTEST_pred = torch.cat(previsioniTEST_idx).numpy()
+
+# Matrice confusione con stessa soglia della validation
+soglia = thresholds[np.argmax(f1_scores)]
+
+truePOS_test = ((yTEST_pred > soglia) & (yTEST_true == 1)).sum()
+falsePOS_test = ((yTEST_pred > soglia) & (yTEST_true == 0)).sum()
+falseNEG_test = ((yTEST_pred <= soglia) & (yTEST_true == 1)).sum()
+trueNEG_test = ((yTEST_pred <= soglia) & (yTEST_true == 0)).sum()
+
+print(f"True positive: {truePOS_test}")
+print(f"False positive: {falsePOS_test}")
+print(f"True negative: {trueNEG_test}")
+print(f"False negative: {falseNEG_test}")
+
+# Metriche
+recall_test = truePOS_test / (truePOS_test + falseNEG_test + 1e-10)
+precision_test = truePOS_test / (truePOS_test + falsePOS_test + 1e-10)
+aucroc_test = roc_auc_score(yTEST_true, yTEST_pred)
+averageprecision_test = average_precision_score(yTEST_true, yTEST_pred)
+
+print(f"\nRecall positive: {recall_test:.4f}")
+print(f"Precision positive: {precision_test:.4f}")
+print(f"AUC-ROC: {aucroc_test:.4f}")
+print(f"Average precision: {averageprecision_test:.4f}")
+
+
+torch.save({
+    'model_state_dict': parametri.state_dict(),
+    'feature': feature,
+    'nomiNODES': nomiNODES,
+    'archiIDX': archiIDX,
+    'mediaTRAIN': mediaTRAIN,
+    'devstandardTRAIN': devstandardTRAIN,
+    'idx_norm': idx_norm,
+    'soglia': thresholds[np.argmax(f1_scores)]
+}, "weights_comunimesi.pth")
+
+#------------------------------------------------
+#------------------------------------------------
+
+
+#TODO integrare parte di benchmark decentemente + dati estratti da NN test set per grafici e quant'altro mah
+        #Spiegare scelte progettuali (principalmente testing ma vabbè)
+        #sISTEMARE ULTIMO COMMENTO R
+        #test previsione su comune successivo con pesi salvati
+
 

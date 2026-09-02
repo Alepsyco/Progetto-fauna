@@ -12,6 +12,7 @@ library("stringr")
 library("sf")     #per openstreetmaps
 library("httr")      #Per openmeteo
 library("jsonlite") #Per openmeteo
+library("terra") #per topografia
 #library("lunar")
 #library("gapminder")
 #library("plotly")
@@ -177,7 +178,7 @@ incidenti <- incidenti %>% st_join(comuni %>% select(NOME), join = st_within)
 #se = sensibilità ecologica
 #pe = pressione antropica
 #ve = valore ecologico
-#fg = ????????????
+#fg = fragilità ambientale??????????
 
 habitat <- st_read("./CNAT_FVG_2021_v4/CNAT_FVG_2021_v4.shp")
 
@@ -201,8 +202,8 @@ habitatJOIN <- habitatJOIN %>% mutate(area = st_area(.))
 
 #media dei valori sopra, da 1 minimo a 5 massimo
 habitatJOIN <- habitatJOIN %>% group_by(ID,NOME) %>% summarise(sensecoM = weighted.mean(senseco, w = as.numeric(area), na.rm = TRUE),
-                                                             pressantroM = weighted.mean(pressantro, w = as.numeric(area), na.rm = TRUE),
-                                                             valecoM = weighted.mean(valeco, w = as.numeric(area), na.rm = TRUE))
+                                                              pressantroM = weighted.mean(pressantro, w = as.numeric(area), na.rm = TRUE),
+                                                              valecoM = weighted.mean(valeco, w = as.numeric(area), na.rm = TRUE))
 
 #matrice di adiacenza tra comuni 
 adjMATRIX <- st_touches(comuni, sparse = FALSE)  
@@ -210,8 +211,36 @@ rownames(adjMATRIX) <- comuni$NOME
 colnames(adjMATRIX) <- comuni$NOME
 
 #-------------------------------------------------
-#-------------------------------------------------
+#GETALTITUDINE da open topografy
+#CITA CON
+#Ho, Y.-F., &amp; Hengl, T. (2025). Global ensemble digital terrain model 30m (GEDTM30) (Version v20250619) [Data set]. Distributed by OpenTopography. https://doi.org/10.5069/G9BV7DT1. Accessed 2026-09-01
 
+#FVGelevation.tif è un quadrato che comprende anche territori esterni
+FVGelevation <- rast("FVGelevation.tif")
+
+#statistiche
+global(
+  FVGelevation,
+  fun = c("min", "max", "mean", "sd"),
+  na.rm = TRUE
+)
+
+comuniTERRA <- vect(comuni)  #converte in formato library terra per aggiustare i confini
+
+altitudineFVG <- crop(FVGelevation, comuniTERRA)
+altitudineFVG <- mask(altitudineFVG, comuniTERRA)  #elimina territori fuori dai confini dei comuni FVG 
+
+#media altitudine per comune (rename necessario causa funzionamento funzioni library terra che da problemi nel bind_cols)
+altitudineMEAN <- extract(altitudineFVG, comuniTERRA, fun = mean, na.rm = TRUE, ID = FALSE) %>% rename(altitudineMEAN = FVGelevation)
+
+#deviazione standard altitudine per comune
+altitudineDEVSTANDARD <- extract(altitudineFVG, comuniTERRA, fun = sd, na.rm = TRUE, ID = FALSE) %>% rename(altitudineDEVSTANDARD = FVGelevation)
+
+altitudineCOMUNI <- bind_cols(NOME = comuni$NOME, altitudineMEAN, altitudineDEVSTANDARD)
+
+
+#-------------------------------------------------
+#-------------------------------------------------
 
 
 #####################################################
@@ -238,15 +267,17 @@ comuniGRID <- unique(comuni$NOME)
 
 #creo griglia di previsione con target per confronto con previsione in training 
 griglia <- expand_grid(NOME = comuniGRID, mese = meseGRID)
+
 incidentimese <- griglia %>% left_join(incidentimese %>% select(-any_of("ID")), by = c("NOME", "mese"))
 incidentimese <- incidentimese %>% mutate(n_incidenti = replace_na(n_incidenti, 0),target = if_else(n_incidenti > 0, 1, 0))
 
 #Ho bisogno di un punto rappresentativo per il meteo comunale della settimana
 #Provato centro del comune ma vengono fuori troppe chiamate
 
-comuniCENTRO <- st_centroid(comuni) %>% mutate(lon = st_coordinates(.)[,1], lat = st_coordinates(.)[,2]) %>% st_drop_geometry() %>% select(NOME, lat, lon)
+comuniCENTRO <- st_centroid(comuni) %>% mutate(lon = st_coordinates(.)[,1], lat = st_coordinates(.)[,2]) %>% st_drop_geometry() 
+comuniCENTRO <- comuniCENTRO %>% select(NOME, lat, lon)
 
-#creo tot punti a cui fanno riferimento i vari comuni (da ~250 a 25)
+#creo tot punti a cui fanno riferimento i vari comuni (da ~250 a 25, per meteo)
 comuniAGG <- kmeans(comuniCENTRO %>% select(lat, lon), centers = 25)
 
 comuniCENTRO <- comuniCENTRO %>% mutate(zona = comuniAGG$cluster)
@@ -287,25 +318,34 @@ getmeteoZONE <- function(mese) {
       zona = zonaCENTRO$zona[i],
       mese = mese,
       tempMEAN = mean(datiM2$daily$temperature_2m_mean[[i]], na.rm = TRUE),
+      precipMAX = max(datiM2$daily$precipitation_sum[[i]], na.rm = TRUE),
+      ventoMEAN = mean(datiM2$daily$windspeed_10m_max[[i]], na.rm = TRUE),
       precipMEAN = mean(datiM2$daily$precipitation_sum[[i]], na.rm = TRUE),
-      ventoMEAN = mean(datiM2$daily$windspeed_10m_max[[i]], na.rm = TRUE)
+      precipSOGLIA = sum(datiM2$daily$precipitation_sum[[i]] > 10, na.rm = TRUE)
+      
     )
   })
 }
 
-mesiUNICI <- unique(incidentimese$mese)
 
-#CHIAMATA API NON SPARARE A CASO
-meteoZONE_mese <- map_dfr(mesiUNICI, function(m) {
+#CHIAMATA API (limitata no problem)
+if (file.exists("meteoZONE_FINAL_V2.rds")) {
+  meteoZONE_mese <- readRDS("meteoZONE_FINAL_V2.rds")
+} else {
+  meteoZONE_mese <- tibble() #se non esiste creo tabella vuota
+}
+
+mesiMANCANTI <- setdiff(mesiUNICI, unique(meteoZONE_mese$mese))
+
+for (m in mesiMANCANTI) {
   Sys.sleep(0.8)
-  getmeteoZONE(m)
-})
+  meteoZONE_mese <- bind_rows(meteoZONE_mese, getmeteoZONE(m))
+  saveRDS(meteoZONE_mese, "meteoZONE_FINAL_V2.rds")
+}
 
-saveRDS(meteoZONE_mese, "meteoZONE_FINAL_V2.rds")
-
-#meteoZONE_mese <- read.csv2("meteoZONE_FINAL_V2.rds", sep = ",", header = TRUE) #SE PER SBAGLIO RESETTI LEGGI DA QUA
-meteoCOMUNI <- comuniCENTRO %>% select(NOME, zona) %>% left_join(meteoZONE_mese, by = "zona")
-
+#meteoZONE_mese <- read.csv2("meteoZONE_FINAL_V2.rds", sep = ",", header = TRUE) #SE PER SBAGLIO RESETTI LEGGI DA QUA (old)
+meteoCOMUNI <- comuniCENTRO %>% select(NOME, zona) 
+meteoCOMUNI <- meteoCOMUNI %>% left_join(meteoZONE_mese, by = "zona")
 
 #matrice di distanza tra centri comunali, permette FORSE di aggiungere un layer alla NN e guardare vicini dei vicini
 distMATRIX <- as.matrix(dist(comuniCENTRO %>% select(lon, lat))) * 111 #moltiplico per passare da lat/lon a km
@@ -315,6 +355,7 @@ pesiMATRIX <- (1 / pmax(distMATRIX, 0.1)) * adjMATRIX
 
 dimnames(pesiMATRIX) <- dimnames(adjMATRIX)
 diag(pesiMATRIX) <- 0 #non considero se stessi
+
 
 #-------------------------------------------------
 #densità strade per zona
@@ -327,16 +368,17 @@ sf_use_s2(TRUE)
 stradeJOIN <- stradeJOIN %>% mutate(km = as.numeric(st_length(.)) / 1000)
 
 #km totali di strada per comune 
-stradeTOT <- stradeJOIN %>% st_drop_geometry() %>% group_by(NOME) %>% summarise(strade_km = sum(km, na.rm = TRUE))
-
+stradeTOT <- stradeJOIN %>% st_drop_geometry() %>% group_by(NOME)
+stradeTOT <- stradeTOT %>% summarise(strade_km = sum(km, na.rm = TRUE))
+  
 #densità = km di strada totali / km^2 comune, normalizza per dimensione del comune
-comuni <- comuni %>% mutate(AREA_KQ = AREA_MQ / 1000000) %>% st_drop_geometry() 
-comuni <- comuni %>% select(NOME, AREA_KQ, AREA_MQ, PERIM_ML, ID) %>% distinct(NOME, .keep_all = TRUE)
+comuniAREA <- comuni %>% mutate(AREA_KQ = AREA_MQ / 1000000) %>% st_drop_geometry() 
+comuniAREA <- comuniAREA %>% select(NOME, AREA_KQ, AREA_MQ, PERIM_ML, ID) %>% distinct(NOME, .keep_all = TRUE)
 
 
-stradeTOT <- stradeTOT %>% left_join(comuni, by = "NOME")
+stradeTOT <- stradeTOT %>% left_join(comuniAREA, by = "NOME")
 stradeTOT <- stradeTOT %>% mutate(density = strade_km / AREA_KQ)   #densità strade
-stradeTOT <- stradeTOT %>% select(NOME, strade_km, density)
+stradeTOT <- stradeTOT %>% select(NOME, strade_km, density, AREA_KQ)
 
 #distinzione per tipo di strada
 stradeCLASSE <- stradeJOIN %>% st_drop_geometry()
@@ -371,6 +413,12 @@ datasetNODES <- datasetNODES %>% left_join(stradeTOT, by = "NOME")
 datasetNODES <- datasetNODES %>% left_join(stradeCLASSE, by = "NOME") 
 datasetNODES <- datasetNODES %>% mutate(across(c(AUT, SPRI, SLOC, SCOM)))
 
+#SCOM da solo non è utile alla NN, provo quantità di strade comunali su tot e su area comune
+datasetNODES <- datasetNODES %>% mutate(SCOM_percentage = replace_na(SCOM / strade_km, 0))
+datasetNODES <- datasetNODES %>% mutate(SCOM_density = SCOM / AREA_KQ)
+
+#altitudine comunale (media e dev standard)
+datasetNODES <- datasetNODES %>% left_join(altitudineCOMUNI, by = "NOME")
 
 write.csv(as.data.frame(pesiMATRIX), "matricePESI.csv")
 write.csv(datasetNODES, "datasetNODES_V3.csv", row.names = FALSE)
@@ -453,8 +501,5 @@ ggplot() +
 
 #TODO
 
-#valutare se aggiungere GETTERRENI da openstreetmap per altitudine (guarda legacy)
-#pulizia ambiente di lavoro per chiarezza debug
-
-#se si vuole rifare/aggiungere plot (in particolare su comuni) aggiungere nuova tabella di supporto (tolto geometry da comuni)
+#AGGIUSTARE mesiUNICI
 
