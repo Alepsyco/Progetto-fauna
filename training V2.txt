@@ -1,0 +1,228 @@
+MESI PER COMUNI /// AGGIUNTI KM DI STRADE DENSITA' E TIPOLOGIE /// GCNN 32 GRU 64 LR 0.002 WD 0.0008 stepsize 35 gamma 0.7 patience 100 /// linear <relu GCN GCN NORM DROPOUT GRU OUTPUT (res relu dropout linear)
+
+
+
+Epoch: 0 || Loss media training: 0.6363
+Epoch: 30 || Loss media training: 0.5868
+Epoch: 60 || Loss media training: 0.5776
+Epoch: 90 || Loss media training: 0.5701
+Epoch: 120 || Loss media training: 0.5625
+Epoch: 150 || Loss media training: 0.5538
+##################################################
+Early stopping attivato all'epoca 161
+##################################################
+Loss media validation: 0.6141975596547127
+Soglia usata (in precedenza 0,5): 0.26048848
+True positive: 542
+False positive: 624
+True negative: 462
+False negative: 92
+Recall positive: 0.8548895899052279
+Precision positive: 0.46483704974267026
+AUC-ROC: 0.7301807925359174
+Average Precision: 0.6295029181461806
+
+ditto senza nuove feature (density km ecc)
+
+peggiore (anche in altri test)
+
+
+####################################################################################################
+####################################################################################################
+####################################################################################################
+
+
+FEATURE STRADE - CORREZIONE DEL METEO (NO PRECIPITAZIONI MEAN, MAX + GIORNI OLTRE TOT) - ALTITUDINE - ARCHITETTURA SIMPLIFICATA 
+
+
+Epoch: 0 || Loss media training: 0.6811
+Epoch: 30 || Loss media training: 0.6357
+Epoch: 60 || Loss media training: 0.6238
+Epoch: 90 || Loss media training: 0.6176
+Epoch: 120 || Loss media training: 0.6110
+Epoch: 150 || Loss media training: 0.6079
+Epoch: 180 || Loss media training: 0.6047
+Epoch: 210 || Loss media training: 0.6010
+Epoch: 240 || Loss media training: 0.5979
+Epoch: 270 || Loss media training: 0.5933
+Loss media validation: 0.6358605474233627
+Soglia usata (in precedenza 0,5): 0.3271924
+True positive: 528
+False positive: 604
+True negative: 482
+False negative: 106
+Recall positive: 0.8328075709777866
+Precision positive: 0.4664310954063192
+AUC-ROC: 0.7102156206610082
+Average Precision: 0.5813627046069139
+Baseline train rows: 13115 | val rows: 1720
+Logistic Regression       | AUC-ROC: 0.7087 | AP: 0.6042
+Hist Gradient Boosting    | AUC-ROC: 0.7150 | AP: 0.6204
+
+Importanza feature (calo di AUC se mescolata più alto = più importante):
+SPRI                     0.032985
+n_incidenti_PREV4        0.032017
+strade_km                0.011403
+SLOC                     0.006121
+valecoM                  0.005815
+tempMEAN                 0.004660
+density                  0.003815
+altitudineDEVSTANDARD    0.002223
+SCOM_percentage          0.001937
+AUT                      0.001832
+altitudineMEAN           0.001185
+SCOM_density             0.000989
+sensecoM                 0.000935
+precipMEAN               0.000814
+cos_mese                 0.000588
+n_incidenti_PREV         0.000238
+pressantroM              0.000229
+sin_mese                 0.000075
+ventoMEAN                0.000000
+precipSOGLIA            -0.000078
+n_incidenti_PREV2       -0.000688
+precipMAX               -0.002774
+
+
+
+DITTO A QUELLO PRIMA PRIMA MA ARCHITETTURA VECCHIA (COMPLESSA)
+
+Epoch: 0 || Loss media training: 0.6375
+Epoch: 30 || Loss media training: 0.5824
+Epoch: 60 || Loss media training: 0.5686
+Epoch: 90 || Loss media training: 0.5579
+Epoch: 120 || Loss media training: 0.5458
+Epoch: 150 || Loss media training: 0.5359
+
+##################################################
+Early stopping attivato all'epoca 163
+##################################################
+
+Loss media validation: 0.6098910793662071
+Soglia usata (in precedenza 0,5): 0.30415264
+
+True positive: 523
+False positive: 542
+True negative: 544
+False negative: 111
+
+Recall positive: 0.8249211356465576
+Precision positive: 0.49107981220652663
+AUC-ROC: 0.7383504423956173
+Average Precision: 0.634868337532984
+
+Baseline train rows: 13115 | val rows: 1720
+Logistic Regression       | AUC-ROC: 0.7087 | AP: 0.6042
+Hist Gradient Boosting    | AUC-ROC: 0.7150 | AP: 0.6204
+
+Importanza feature (calo di AUC se mescolata più alto = più importante):
+SPRI                     0.032985
+n_incidenti_PREV4        0.032017
+strade_km                0.011403
+SLOC                     0.006121
+valecoM                  0.005815
+tempMEAN                 0.004660
+density                  0.003815
+altitudineDEVSTANDARD    0.002223
+SCOM_percentage          0.001937
+AUT                      0.001832
+altitudineMEAN           0.001185
+SCOM_density             0.000989
+sensecoM                 0.000935
+precipMEAN               0.000814
+cos_mese                 0.000588
+n_incidenti_PREV         0.000238
+pressantroM              0.000229
+sin_mese                 0.000075
+ventoMEAN                0.000000
+precipSOGLIA            -0.000078
+n_incidenti_PREV2       -0.000688
+precipMAX               -0.002774
+
+
+#####################################################################################
+
+Dopo varie prove sembra che architettura complessa batta quella semplice all'aumentare delle feature, anche se prima erano più o meno equivalenti.
+
+#####################################################################################
+
+
+Aggiungo anche edgeweight (distanza effettiva tra comuni)
+
+
+Epoch: 0 || Loss media training: 0.6355
+Epoch: 30 || Loss media training: 0.5824
+Epoch: 60 || Loss media training: 0.5681
+Epoch: 90 || Loss media training: 0.5592
+
+##################################################
+Early stopping attivato all'epoca 119
+##################################################
+
+Loss media validation: 0.6198386326432228
+Soglia usata (in precedenza 0,5): 0.38840693
+
+True positive: 417
+False positive: 326
+True negative: 760
+False negative: 217
+
+Recall positive: 0.6577287066245019
+Precision positive: 0.5612382234184978
+AUC-ROC: 0.7333920095741036
+Average Precision: 0.6281918784657996
+
+
+architettura semplice
+
+Epoch: 0 || Loss media training: 0.6683
+Epoch: 30 || Loss media training: 0.6029
+Epoch: 60 || Loss media training: 0.5949
+Epoch: 90 || Loss media training: 0.5912
+Epoch: 120 || Loss media training: 0.5889
+Epoch: 150 || Loss media training: 0.5845
+Epoch: 180 || Loss media training: 0.5840
+Epoch: 210 || Loss media training: 0.5815
+Epoch: 240 || Loss media training: 0.5804
+Epoch: 270 || Loss media training: 0.5777
+Loss media validation: 0.6175809279084206
+Soglia usata (in precedenza 0,5): 0.35844928
+
+True positive: 472
+False positive: 462
+True negative: 624
+False negative: 162
+
+Recall positive: 0.7444794952680214
+Precision positive: 0.5053533190577617
+AUC-ROC: 0.7263799083256357
+Average Precision: 0.6262782281870553
+
+TESTING FINALE PER DECIDERE ARCHITETTURA COMPLESSA O SEMPLICE
+
+1984: 0.7314211269323945 vs 0.7102156206610082
+1985: 0.7309796027444214 vs 0.7152895178672058
+42: 0.7297378159657469 vs 0.718794842300341
+
+
+Mantengo e modifico architettura complessa (2 layer GATConv, res connection, dropout)
+#####################################################################################
+#####################################################################################
+#####################################################################################
+
+senza edge weight
+1984: 0.7314211269323945 Recall positive: 0.7886435331229039 Precision positive: 0.4911591355598732
+1985: 0.7309796027444214 Recall positive: 0.7697160883279542 Precision positive: 0.5046535677352115
+42: 0.7297378159657469 Recall positive: 0.7271293375393174 Precision positive: 0.5162374020156196
+
+con edge weight
+1984: 0.730080578164305 Recall positive: 0.7018927444793845 Precision positive: 0.543345543345477
+1985: 0.7280690288210723 Recall positive: 0.8123028391165911 Precision positive: 0.4808590102707301
+42: 0.7320964846541297 Recall positive: 0.6861198738169264 Precision positive: 0.5417185554171181
+
+Non sembra rilevante, cambiamenti dipendenti da fluttuazioni statistiche?
+Se si alza recall si abbassa sempre precision.
+
+USO ARCHITETTURA COMPLESSA SENZA EDGE WEIGHT
+
+
