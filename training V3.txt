@@ -1,0 +1,89 @@
+PRIMI PESI SALVATI, AUC ROC DECENTE (leggermente più di baseline) e recall buona 
+
+Epoch: 0 || Loss media training: 0.6377
+Epoch: 30 || Loss media training: 0.5859
+Epoch: 60 || Loss media training: 0.5741
+Epoch: 90 || Loss media training: 0.5661
+Epoch: 120 || Loss media training: 0.5590
+Epoch: 150 || Loss media training: 0.5514
+
+##################################################
+Early stopping attivato all'epoca 179
+##################################################
+
+Loss media validation: 0.6082278490066528
+
+True positive: 545
+False positive: 590
+True negative: 497
+False negative: 88
+
+Recall positive: 0.8609794628750614
+Precision positive: 0.48017621145370215
+AUC-ROC: 0.7370445782484656
+Average precision: 0.6271749439893161
+
+
+
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+
+importante modifica: visto che target prima era ci saranno incidenti si/no e Trieste (per ovvi motivi) dominava sugli altri ho cambiato in target n_incidenti sopra la media? si/no.
+
+Questo permette di valutare i mesi più pericolosi del comune (se ce ne sono) analizzando l'andamento delle percentuali di rischio calcolate.
+
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC
+
+Epoch: 0 || Loss media training: 0.6725
+Epoch: 30 || Loss media training: 0.6228
+Epoch: 60 || Loss media training: 0.6114
+Epoch: 90 || Loss media training: 0.6010
+Epoch: 120 || Loss media training: 0.5936
+
+##################################################
+Early stopping attivato all'epoca 147
+##################################################
+
+Loss media validation: 0.648969292640686
+
+True positive: 471
+False positive: 555
+True negative: 567
+False negative: 127
+
+Recall positive: 0.7876254180600689
+Precision positive: 0.4590643274853354
+AUC-ROC: 0.703123602739971
+Average precision: 0.5431563444631868
+
+
+MODIFICHE VARIE A SOGLIE TRESHOLD E AGGIUSTAMENTI PER BASE (VEDI CODICE COMMENTI)
+
+Epoch: 0 || Loss media training: 0.6803
+Epoch: 30 || Loss media training: 0.6559
+Epoch: 60 || Loss media training: 0.6362
+Epoch: 90 || Loss media training: 0.6249
+
+
+##################################################
+#                                                #
+#   Early stopping attivato all'epoca 100       #
+#                                                #
+##################################################
+
+Loss media validation: 0.808247372508049
+
+True positive: 403
+False positive: 616
+True negative: 601
+False negative: 100
+
+Recall positive: 0.8012
+Precision positive: 0.3955
+AUC-ROC: 0.7159
+Average precision: 0.4976
+
