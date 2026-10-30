@@ -123,15 +123,16 @@ strade <- st_transform(strade, 32633)
 stradeNOSC <- strade %>% filter(CLASSE != "SC")
 stradeNOSC <- stradeNOSC %>% mutate(km = floor(((BEGIN + END) / 2) / 1000))     #KM appartenenza arco
 
-#aggiusto lunghezza orig_lenght di 2 NA
-stradeNOSC <- stradeNOSC %>% mutate(ORIG_LENGTH = coalesce(ORIG_LENGTH, END - BEGIN))   #coalesce restituisce primo valore non NA che trova, se NA usa calcolo)
-
 #uso TRIM_SUSTAINER per mantenere univoche le strade (es SP 1)
+#lunghezza con END-BEGIN (risolve problemi doppia corsia) PROBLEMA STRADE COMUNALI
 sezioni <- stradeNOSC %>% group_by(TRIM_SUSTAINER, TRIM_STR_CODE_1, CLASSE, km)
-sezioni <- sezioni %>% summarise(archi = n(), lunghezza_m = sum(ORIG_LENGTH), do_union = FALSE, .groups = "drop")   #un blocco per strada e chilometro
+sezioni <- sezioni %>% summarise(archi = n(), lunghezza_m = max(END) - min(BEGIN), do_union = FALSE, .groups = "drop")   #un blocco per strada e chilometro
 
-#snap per distanza e classe strada
-incidentiNOSC <- incidenti %>% filter(as.numeric(stradeDIST) <= sogliaSNAP, strade$CLASSE[stradeNEAR] != "SC")    #incidenti su strade extraurbane
+#snap per distanza cercando solo tra le strade non comunali SC
+stradeNEARNOSC <- st_nearest_feature(incidenti, stradeNOSC)
+stradeDISTNOSC <- st_distance(incidenti, stradeNOSC[stradeNEARNOSC, ], by_element = TRUE)
+
+incidentiNOSC <- incidenti %>% filter(as.numeric(stradeDISTNOSC) <= sogliaSNAP)    #incidenti su strade extraurbane
 
 
 sezioni <- sezioni %>% mutate(n_incidenti = tabulate(st_nearest_feature(incidentiNOSC, sezioni), nbins = nrow(sezioni)))#riga del blocco più vicino a incidenti e tabulate conta gli incidenti per blocco
@@ -163,7 +164,6 @@ if (file.exists("sezioni.rds")) {
   sezioni <- readRDS("sezioni.rds")
 } else {
   
-  
   boschi <- st_read("./CNAT_FVG_2021_v4/CNAT_FVG_2021_v4.shp") %>% filter(grepl("^(41|42|44)", CODICE)) #filtro habitat seleziono solo bosco
   boschi <- boschi %>% st_transform(32633) %>% st_make_valid() #cs corretto + aggiustamento poligoni
   boschi <- boschi %>% st_union()
@@ -184,7 +184,7 @@ if (file.exists("sezioni.rds")) {
   sezioni <- sezioni %>% mutate(bosco500 = bosco(500))
   
   saveRDS(sezioni, "sezioni.rds")
-  
+
 }
 
 #edifici
