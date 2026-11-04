@@ -14,6 +14,8 @@ from scipy.spatial import cKDTree
 # questo torna a idea originale (divisione in blocchi, distanza da bosco con 20 200 500 metri cerchio)
 #
 #
+#
+#start 2024/06/01
 ######################################################################################################################################
 
 #Carica dataset finale da R
@@ -24,23 +26,69 @@ incidenti = pd.read_csv("incidentiBLOCCHI.csv")       #un incidente per riga con
 torch.manual_seed(1984)
 np.random.seed(1984)
 
+
 #------------------------------------------------
-#divisione tempo e strada per training e creazione feature
+#specie e gruppi e parametri divisione
 
 trainQUOTA = 0.80
 valdationQUOTA = 0.10     #il test è il resto
-start = "2024-01-01"
+start = "2024-06-01"    #per divisione teemporale
 
 specie = ["Cervo", "Cinghiale", "Daino", "Capriolo", "Lupo", "Camoscio", "Tasso", "Sciacallo dorato", "Volpe"]    #specie d'interesse
-incidenti = incidenti[incidenti["specie"].isin(specie)]
+incidenti = incidenti[incidenti["specie"].isin(specie)] #conteggio incidenti
 
-#gli incidenti prima sono parte del training, dopo sono target
-sezioni["incidentiBF"] = incidenti[incidenti["data_iso"] < start].groupby("blocco").size().reindex(sezioni.index, fill_value=0) #fill_value altrimenti da errore
-sezioni["incidentiAF"] = incidenti[incidenti["data_iso"] >= start].groupby("blocco").size().reindex(sezioni.index, fill_value=0)
+gruppo = incidenti.groupby("pericolosita_specie")["specie"].unique().reindex(["HIGH", "MID", "LOW"]).to_dict() #to_dict per prendere nomi nei gruppi HIGH MID LOW
 
-sezioni["target"] = (sezioni["incidentiAF"] > 0).astype(int)     #1 se il blocco avrà incidenti, 0 altrimenti
+#------------------------------------------------
+#divisione incidenti da data e per specie (near)
+
+#gli incidenti BF sono parte del training AF sono target
+
+incidentiBF = incidenti[incidenti["data_iso"] < start]
+incidentiAF = incidenti[incidenti["data_iso"] >= start]
+
+sezioni["incidentiBF"] = incidentiBF.groupby("blocco").size().reindex(sezioni.index, fill_value=0) #fill_value altrimenti da errore
+
+#divisione da start ma per ogni gruppo di specie (pericolosità HIGH MID LOW)
+gruppoBF = incidentiBF.groupby(["blocco", "pericolosita_specie"]).size().unstack(fill_value=0).reindex(index=sezioni.index, columns=list(gruppo), fill_value=0)     #incidenti prima di start (2024/06/01) righe blocchi colonne gruppi
+gruppoAF = incidentiAF.groupby(["blocco", "pericolosita_specie"]).size().unstack(fill_value=0).reindex(index=sezioni.index, columns=list(gruppo), fill_value=0)     #incidenti dopo start
+
+for i in gruppo: sezioni["incidentiBF_" + i] = gruppoBF[i]     #incidenti prima di start del gruppo
+
+incidentiCOMP = incidenti[(incidenti["data_iso"] >= "2020-01-01") & (incidenti["data_iso"] < start)]     #inizio da quando i dati sono completi
+
+frequenza = incidentiCOMP["specie"].value_counts(normalize=True)     #freq di ogni specie sul totale degli incidenti
+
+#incidenti locale per specie, usa le specie degli incidenti attorno al blocco. se non ci sono incidenti vicini storicamente per X specie uso storico regionale
+raggio = 5000     #raggio in cui si conta gli incidenti attorno al blocco
+baselineREG = 5     #la frequenza regionale pesa come 5 incidenti, se attorno al blocco ce ne sono pochi uso baseline
+
+#calcola vicini (entro 5000m) per vedere se influisce su percentuale.
+
+blocchinear = (
+    cKDTree(sezioni[["x", "y"]].values) #trova vicini in base a coordinate
+    .query_ball_point(sezioni[["x", "y"]].values, raggio)   #crea lista
+)
+
+countn = (
+    incidentiCOMP.groupby(["blocco", "specie"]).size()  #count incidenti per coppia blocco,specie
+    .unstack(fill_value=0).reindex(index=sezioni.index, columns=frequenza.index, fill_value=0)  #aggiunge anche blocchi senza incidenti (valore 0)
+)
+
+incidentinear = np.array([countn.values[i].sum(axis=0) for i in blocchinear]) #incidenti vicini a un determinato blocco
+
+#formula (incidenti vicini della specie + 5 × frequenza regionale) / (incidenti vicini totali + 5)             5 è baseline per scelta vicini/regione
+percincidenti = pd.DataFrame(
+    (incidentinear + baselineREG * frequenza.values) / (incidentinear.sum(axis=1, keepdims=True) + baselineREG),
+    index=sezioni.index,
+    columns=frequenza.index
+)
 
 sezioni["altitudineDEVSTANDARD"] = sezioni["altitudineDEVSTANDARD"].fillna(0)     #NA se il blocco marca solo una cella raster (no devstandard)
+
+#------------------------------------------------
+#divisione per strada
+
 strada = sezioni["TRIM_SUSTAINER"] + " " + sezioni["TRIM_STR_CODE_1"]     #sempre per distinguere SP1
 
 stradarand = np.random.permutation(strada.unique()) #ordine random per strade
@@ -49,22 +97,24 @@ splitTRAIN = int(len(stradarand) * trainQUOTA)
 splitVAL = int(len(stradarand) * (trainQUOTA + valdationQUOTA))
 
 sezioniTRAIN = sezioni[strada.isin(stradarand[:splitTRAIN])]
-sezioniVAL = sezioni[strada.isin(stradarand[splitTRAIN:splitVAL])]
 sezioniTEST = sezioni[strada.isin(stradarand[splitVAL:])]
 
 #------------------------------------------------
-#FEATURE PER NODO E (TODO: altre feature)
+#FEATURE PER NODO
 
 feature = [
-    "altitudineMEAN",
-    "altitudineDEVSTANDARD",
-    "bosco20",
-    "bosco200",
-    "bosco500",
-    "edifici50",
-    "edifici200",
-    "lunghezza_m",
-    "incidentiBF"
+    "altitudineMEAN",          #altitudine media blocco
+    "altitudineDEVSTANDARD",  #differenza altitudine per blocco
+    "bosco20",                #percentuale bosco in 20 metri attorno
+    "bosco200",                #"" 200 metri
+    "bosco500",                #"" 500 metri
+    "edifici50",               #edifici, 50 metri
+    "edifici200",               #"" 200 metri
+    "lunghezza_m",             #metri strada
+    "incidentiBF",          #incidenti prima di start (BF è BEFORE)
+    "incidentiBF_HIGH",   #incidenti prima di start (pericolosità HIGH)
+    "incidentiBF_MID",
+    "incidentiBF_LOW"
 ]
 
 
@@ -87,8 +137,8 @@ patience = 100  #n epoche di attesa prima di fermarsi
 lossFN = nn.BCEWithLogitsLoss()
 
 #-----------------------------------------------------
+#NN: per ogni blocco stima il rischio dei tre gruppi HIGH MID LOW
 
-#NN
 #creo rete grafo (nodi = blocchi) collegamento solo se sulla stessa strada continuativamente!!
 
 posizione = dict(zip(zip(strada, sezioni["km"]), range(len(sezioni))))     #(strada, km) segna posizione del blocco nella tabella
@@ -105,7 +155,7 @@ archiIDX = torch.tensor(np.array([righe, colonne]), dtype=torch.long)
 
 
 class RischioGNN(nn.Module):
-    def __init__(self, inputfeature, nodi1, nodi2):
+    def __init__(self, inputfeature, nodi1, nodi2, uscite):
         super().__init__()
 
         #forma NN (ogni riga ha input e output)
@@ -117,10 +167,10 @@ class RischioGNN(nn.Module):
         self.norm = nn.LayerNorm(nodi1)
         self.dropout = nn.Dropout(0.3)     #spegne casualmente neuroni per limitare overfitting
 
-        self.output = nn.Sequential(
+        self.output = nn.Sequential(        #output riceve il risultato più feature e dà 3 uscite
             nn.Linear(nodi1 + inputfeature, nodi2),
             nn.ReLU(),
-            nn.Linear(nodi2, 1)
+            nn.Linear(nodi2, uscite)
         )
 
 #funzione NN
@@ -134,11 +184,11 @@ class RischioGNN(nn.Module):
         valori = torch.cat([valori, xBLOCK], dim=-1)
 
         rischio = self.output(valori)
-        return rischio.squeeze()
+        return rischio
 
 #grafo di blocchi
 xBLOCK = torch.tensor(((sezioni[feature] - mediaTRAIN) / devstandardTRAIN).values, dtype=torch.float)
-yBLOCK = torch.tensor(sezioni["target"].values, dtype=torch.float)
+yBLOCK = torch.tensor((gruppoAF > 0).values, dtype=torch.float)    #target a colonna di array 3 valori HIGH MID LOW
 
 idxTRAIN = np.where(strada.isin(stradarand[:splitTRAIN]).values)[0]     #posizioni dei blocchi nei due insiemi
 idxVAL = np.where(strada.isin(stradarand[splitTRAIN:splitVAL]).values)[0]
@@ -147,7 +197,7 @@ idxVAL = np.where(strada.isin(stradarand[splitTRAIN:splitVAL]).values)[0]
 
 #train
 
-parametriGNN = RischioGNN(len(feature), 16, 8)
+parametriGNN = RischioGNN(len(feature), 16, 8, len(gruppo))
 
 patienceCOUNT = 0
 aucBEST = 0.0
@@ -206,51 +256,37 @@ parametriGNN.eval()
 with torch.no_grad():
     yFORECAST = torch.sigmoid(parametriGNN(xBLOCK, archiIDX))[idxVAL].numpy()
 
-print(f"AUC-ROC: {roc_auc_score(sezioniVAL['target'], yFORECAST):.5f} | AP: {average_precision_score(sezioniVAL['target'], yFORECAST):.5f}")
+def out(nome, yREALE, yPREVISTO):
+    print(f"{nome} | AUC-ROC: {roc_auc_score(yREALE, yPREVISTO):.5f} | AP: {average_precision_score(yREALE, yPREVISTO):.5f}")
 
+for i, nome in enumerate(gruppo):
+    out(nome, yBLOCK[idxVAL, i].numpy(), yFORECAST[:, i])     #yFORECAST ha tre colonne per HIGH MID LOW
 
 #-----------------------------------------------------
 #probabilità specie per blocco mensile
 
 mese = pd.to_datetime(incidenti["data_iso"]).dt.month
-incidentiCOMP = incidenti[(incidenti["data_iso"] >= "2020-01-01") & (incidenti["data_iso"] < start)]     #inizio da quando i dati sono completi
 
 quotaTOT = incidentiCOMP.groupby(["specie", mese]).size().unstack(fill_value=0)     #riga specie e colonna mese
 quotaTOT = quotaTOT.div(quotaTOT.sum(axis=1), axis=0)     #ogni riga somma 1
 
-frequenza = incidentiCOMP["specie"].value_counts(normalize=True)     #freq di ogni specie sul totale degli incidenti
 
-#incidenti locale per specie, usa le specie degli incidenti attorno al blocco. se non ci sono incidenti vicini storicamente per X specie uso dati regionali
-raggio = 5000     #raggio in cui si conta gli incidenti attorno al blocco
-baselineREG = 5     #la frequenza regionale pesa come 5 incidenti, se attorno al blocco ce ne sono pochi uso baseline
-
-#calcola vicini per vedere se influisce su percentuale.
-
-blocchinear = cKDTree(sezioni[["x", "y"]].values).query_ball_point(sezioni[["x", "y"]].values, raggio)     #lista dei blocchi entro raggio
-
-countn = incidentiCOMP.groupby(["blocco", "specie"]).size().unstack(fill_value=0).reindex(index=sezioni.index, columns=frequenza.index, fill_value=0)
-
-incidentinear = np.array([countn.values[v].sum(axis=0) for v in blocchinear])
-
-#formula (incidenti vicini della specie + 5 × frequenza regionale) / (incidenti vicini totali + 5)             5 è baseline per scelta vicini/regione
-percincidenti = pd.DataFrame((incidentinear + baselineREG * frequenza.values) / (incidentinear.sum(axis=1, keepdims=True) + baselineREG), index=sezioni.index, columns=frequenza.index)
-
-def probabilita(rischio, b, s, m):     #rischio è probabilità del blocco dal modello, blocco, specie, mese
-    tasso = -np.log(1 - np.clip(rischio, 1e-6, 1 - 1e-6)) / ((pd.to_datetime(incidenti["data_iso"]).max() - pd.Timestamp(start)).days / 30.44)      #incidenti attesi al mese sul blocco
+def probabilita(rischio, b, s, m):     #rischio è probabilità del gruppo s. blocco, specie, mese
+    tasso = -np.log(1 - np.clip(rischio, 1e-6, 1 - 1e-6)) / ((pd.to_datetime(incidenti["data_iso"]).max() - pd.Timestamp(start)).days / 30.44)      #incidenti attesi per gruppo al mese sul blocco
     correttivo = 1 if s == "Cinghiale" else 12 * quotaTOT.loc[s, m]  # 12 * quota = 1 se il mese è nella media, il cinghiale ha problemi causa fluttuazione dati quindi manengo 1
-    return 1 - np.exp(-tasso * percincidenti.loc[b, s] * correttivo) #probabilità >1 incidente di una specie in quel mese
+    lista = next(i for i in gruppo.values() if s in i)  #estrae specie di ogni gruppo (oltre HIGH MID LOW)
+    return 1 - np.exp(-tasso * percincidenti.loc[b, s] / percincidenti.loc[b, lista].sum() * correttivo) #probabilità >1 incidenti di una specie in quel mese
 
 
 
-#-----------------------------------------------------
+#####################################################################################################################
 
 #TODO confronto con altra NN (da più info? utile? comunque mantenere)
-        #specie peso diverso per pericolosità diversa: decidere soglia arbitraria (basata su peso? forse bisogna cambiare la classificazione su R)
-        #incidentivicini interesse solo con blocchi senza storia, quindi comunali? se aggiungiamo
         #valutare se modificare target (ora AUC ROC molto alto)
-        #prova gnn multiuscita per specie (migliora precisione blocchi, vedi paper)
+        #benchmark contro storico base (che mesezone non batteva) e altri modelli
+        #scegliere cosa fare con camoscio lupo daino (troppi pochi incidenti)
+        #possibile simulare dati del traffico basandosi su numero di abitanti e tipo di strada?
 
-        #start 2024/06/01
 
 #TODO done
     #importare e provare feature vecchie (tipo meteo? ma se non andava la dubito vada qui)
@@ -261,3 +297,4 @@ def probabilita(rischio, b, s, m):     #rischio è probabilità del blocco dal m
         #troppe pochi incidenti e troppa differenza
     #Eliminato le strade comunali per problemi begin end? riaggiungere per completezza
         #strade comunali irrilevanti (principalmente centri abitati)
+    #prova gnn multiuscita per specie (migliora precisione blocchi, vedi paper)

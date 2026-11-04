@@ -6,13 +6,13 @@ remove.packages("a")
 
 library("dplyr")
 library("tidyverse")
-library("extrafont") #Ingnorare 40+ errori generati dalla libreria (developer comment)
 library("ggplot2")
 library("stringr")
 library("sf")     #per openstreetmaps
 library("httr")      #Per openmeteo
-library("jsonlite") #Per openmeteo
 library("terra") #per topografia
+#library("extrafont") #Ingnorare 40+ errori generati dalla libreria (developer comment)
+#library("jsonlite") #Per openmeteo
 #library("lunar")
 #library("gapminder")
 #library("plotly")
@@ -63,6 +63,8 @@ incidenti <- incidenti %>% mutate(data_iso = format(as.Date(data_intervento, "%Y
 incidenti <- incidenti %>% filter(!is.na(lat), !is.na(long)) %>% st_as_sf(coords = c("long", "lat"), crs = 4326, remove = FALSE)
 
 
+incidenti <- incidenti %>% mutate(specie = if_else(specie == "Daino", "Cervo", specie))
+
 #classificazione di pericolosità empirica in base al tipo peso e danni dell'animale
 incidenti <- incidenti %>% mutate(pericolosita_specie = case_when(
   specie %in% c("Cervo", "Cinghiale", "Daino") ~ "HIGH",
@@ -74,14 +76,6 @@ incidenti <- incidenti %>% mutate(pericolosita_specie = case_when(
 incidenti <- incidenti %>% mutate(sesso = if_else(sesso == "" | sesso == "N.D.", "ND", sesso))
 
 incidenti <- incidenti %>% mutate(classe_eta = if_else(classe_eta == "" | classe_eta == "N.D.", "ND", classe_eta))
-
-#accorpamento data e ora per verificare tempo di intervento
-incidenti <- incidenti %>% mutate(dataora_segnalamento = as.POSIXct(paste(data_segnalamento, ora_segnalamento), format = "%Y-%m-%d %H:%M:%S"),
-                                  dataora_intervento = as.POSIXct(paste(data_intervento, ora_intervento), format = "%Y-%m-%d %H:%M:%S"))
-
-incidenti <- incidenti %>% mutate(dataoraDIFF = as.numeric(difftime(dataora_intervento, dataora_segnalamento, units = "mins")))
-incidenti <- incidenti %>% select(-any_of(c("data_segnalamento", "ora_segnalamento", "data_intervento", "ora_intervento")))
-
 
 #------------------------------------------------
 
@@ -104,15 +98,6 @@ strade <- st_read(stradeURL)
 
 #------------------------------------------------
 
-
-#da incidenti trova strade vicine alle coordinate e controlla la distanza
-stradeNEAR <- st_nearest_feature(incidenti, strade)
-stradeDIST <- st_distance(incidenti, strade[stradeNEAR, ], by_element = TRUE)
-
-#Se distanza minore di 50 inserisco la strada (nuova colonna per avere più dati)
-incidenti <- incidenti %>% mutate(luogo_segnalamentoCROSS = if_else( as.numeric(stradeDIST) <= sogliaSNAP,
-                                                                     strade$TRIM_STR_CODE_1[stradeNEAR],
-                                                                     luogo_segnalamento), .before = 11)
 
 incidenti <- st_transform(incidenti, 32633)
 strade <- st_transform(strade, 32633)
@@ -216,10 +201,12 @@ sezioni <- sezioni %>% mutate(x = st_coordinates(st_centroid(st_geometry(sezioni
 write.csv(sezioni %>% st_drop_geometry(), "sezioni.csv")   
 
 incidentiBLOCCHI <- incidentiNOSC %>% mutate(blocco = st_nearest_feature(incidentiNOSC, sezioni)) %>% st_drop_geometry() #colonna blocco più vicino a incidente
-incidentiBLOCCHI <- incidentiBLOCCHI %>% select(blocco, data_iso, specie) 
+incidentiBLOCCHI <- incidentiBLOCCHI %>% select(blocco, data_iso, specie, pericolosita_specie) 
 
 write.csv(incidentiBLOCCHI, "incidentiBLOCCHI.csv", row.names = FALSE)     #un incidente per riga con il blocco a cui appartiene
 
 ###################################################################
 ###################################################################
-
+#TODO
+#grafico specie picco incidenti nei mesi (rilevato tramite NN)
+  #rosso quando c'è caccia o stagione riproduttiva? blu altrimenti
