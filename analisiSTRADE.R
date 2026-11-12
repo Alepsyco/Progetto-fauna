@@ -93,7 +93,14 @@ strade$query <- list(
 )
 
 stradeURL <- build_url(strade)
-strade <- st_read(stradeURL)
+
+#salvataggio strade per evitare rallentamento
+if (file.exists("strade.rds")) {
+  strade <- readRDS("strade.rds")     
+} else {
+  strade <- st_read(stradeURL)
+  saveRDS(strade, "strade.rds")     
+}
 
 
 #------------------------------------------------
