@@ -1,0 +1,65 @@
+Esempio training
+
+Epoch: 0 || Loss training: 0.95615
+Epoch: 30 || Loss training: 0.42048
+Epoch: 60 || Loss training: 0.39569
+Epoch: 90 || Loss training: 0.38097
+Epoch: 120 || Loss training: 0.37197
+Epoch: 150 || Loss training: 0.36675
+Epoch: 180 || Loss training: 0.36532
+Epoch: 210 || Loss training: 0.36343
+############################################
+#                                          #
+#   Early stopping attivato all'epoca 233   #
+#                                          #
+############################################
+
+Epoch: 0 || Loss training: 0.96924
+Epoch: 30 || Loss training: 0.41354
+Epoch: 60 || Loss training: 0.39106
+Epoch: 90 || Loss training: 0.38185
+Epoch: 120 || Loss training: 0.37362
+Epoch: 150 || Loss training: 0.36965
+Epoch: 180 || Loss training: 0.36374
+Epoch: 210 || Loss training: 0.36277
+############################################
+#                                          #
+#   Early stopping attivato all'epoca 238   #
+#                                          #
+############################################
+
+Epoch: 0 || Loss training: 0.90318
+Epoch: 30 || Loss training: 0.40835
+Epoch: 60 || Loss training: 0.38660
+Epoch: 90 || Loss training: 0.37759
+Epoch: 120 || Loss training: 0.36997
+Epoch: 150 || Loss training: 0.36653
+Epoch: 180 || Loss training: 0.36364
+Epoch: 210 || Loss training: 0.36080
+############################################
+#                                          #
+#   Early stopping attivato all'epoca 239   #
+#                                          #
+############################################
+
+HIGH | AUC-ROC: 0.93558 | AP: 0.31346
+MID | AUC-ROC: 0.83748 | AP: 0.58849
+LOW | AUC-ROC: 0.76852 | AP: 0.42088
+
+
+
+Esempio forecast (head 5)
+
+mese previsto: maggio
+
+strada  km     HIGH      MID     LOW  Cinghiale   Cervo  Capriolo    Lupo  Camoscio  Sciacallo dorato   Volpe   Tasso
+
+3705    ITD44 SP 35   5  34.7337  21.9425  7.3316    33.8178  1.3840   21.9410  0.0013    0.0006            0.8478  2.3053  4.3338
+
+589   IT SS 15 racc   4  14.7372  11.1012  4.3833    14.7169  0.0238   11.1006  0.0005    0.0002            0.2752  1.4299  2.7285
+
+587   IT SS 15 racc   2  11.3258   7.2057  3.2309    11.3087  0.0193    7.2053  0.0003    0.0002            0.1619  1.0360  2.0592
+
+3700    ITD44 SP 35   0  10.8292   9.1438  3.2359    10.5756  0.2836    9.1431  0.0005    0.0002            0.3532  0.9826  1.9293
+
+3701    ITD44 SP 35   1  10.7827   6.5573  2.2743    10.4696  0.3498    6.5568  0.0004    0.0002            0.2658  0.6830  1.3400
